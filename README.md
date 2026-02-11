@@ -1,16 +1,16 @@
 # GD LEX – Verifica Deposito PCT/PDUA
 
-Applicazione desktop + CLI per Linux, orientata a controllo conservativo dei file destinati al deposito telematico PCT/PDUA.
+Applicazione desktop + CLI per Linux, orientata al controllo conservativo dei file destinati al deposito telematico PCT/PDUA.
 
-## Caratteristiche MVP
+## Caratteristiche principali
 
-- Analisi file/cartelle con regole da YAML.
+- Analisi file/cartelle con regole da configurazione.
 - Segnalazione incompatibilità note (estensioni, ZIP non flat, nomi, PDF invalidi/cifrati).
 - Normalizzazione conservativa dei nomi file.
-- Creazione copia sanitizzata **senza alterare originali**.
-- Backup automatico, `manifest.json`, `report.txt`.
-- GUI PySide6 sobria (drag&drop, tabella stato, log tecnico).
-- CLI `gdlex-check` con modalità analyze/sanitize/json/dry-run.
+- Correzione automatica batch su **tutte le righe analizzate**.
+- Output separato dall'input, senza modificare gli originali.
+- Report dettagliati: `REPORT.txt`, `REPORT.json`, `MANIFEST.csv`.
+- GUI PySide6 dark professionale + CLI `gdlex-check`.
 
 ## Installazione
 
@@ -25,26 +25,21 @@ pip install -e .
 Comando base:
 
 ```bash
-gdlex-check input_folder --output out_folder --profile pdua_safe
+gdlex-check input_folder --sanitize --profile pdua_safe
 ```
 
-Esempi utili:
+Output default:
+- input cartella -> `<parent>/<nome_input>_conforme`
+- input file -> `<parent>/<stem_file>_conforme`
+
+Output custom:
 
 ```bash
-gdlex-check fascicolo/ --analyze --report
-gdlex-check fascicolo/ --sanitize --profile pdua_safe
-gdlex-check fascicolo/ --sanitize --json --dry-run
+gdlex-check fascicolo --sanitize --output /percorso/output
 ```
 
-Opzioni supportate:
-
-- `--analyze`
-- `--sanitize`
-- `--report`
-- `--strict`
-- `--profile`
-- `--json`
-- `--dry-run`
+In questo caso l'output è creato in:
+`/percorso/output/<basename_input>_conforme`
 
 ## Uso GUI
 
@@ -53,10 +48,34 @@ gdlex-gui
 ```
 
 Flusso:
-1. Trascinare file/cartella nell’area Drag & Drop.
-2. Cliccare **Analizza** per controllo.
-3. Cliccare **Crea Copia Conforme** per output sanitizzato.
-4. Consultare tabella, dettagli e log tecnico.
+1. Trascinare file/cartella oppure usare i pulsanti di caricamento.
+2. Cliccare **Analizza**.
+3. Cliccare **Correggi automaticamente** per processare tutte le righe.
+4. Verificare colonna **Esito correzione** e log tecnico.
+
+## Come funziona “Correggi automaticamente”
+
+La pipeline lavora su tutti i risultati di analisi:
+
+1. Crea cartella output separata (`*_conforme`).
+2. Per ogni file prova una correzione conservativa:
+   - normalizzazione nome file,
+   - riparazione ZIP (flatten, normalizzazione nomi interni, ricreazione archivio).
+3. Rianalizza l'output del singolo file.
+4. Assegna esito:
+   - `NON ESEGUITA`
+   - `OK`
+   - `CORRETTA`
+   - `PARZIALE`
+   - `IMPOSSIBILE`
+   - `ERRORE`
+5. Continua anche se un file fallisce (error handling per-file).
+
+## Limiti noti
+
+- `zip_mixed_pades` resta warning informativo (non split automatico in questa versione).
+- Alcuni file non ammessi per profilo sono marcati `IMPOSSIBILE` e non vengono corretti.
+- Verifica PDF basata su controlli strutturali leggeri (header/trailer/encryption marker).
 
 ## Struttura progetto
 
@@ -66,13 +85,6 @@ Flusso:
 - `configs/`: profili YAML
 - `tests/`: pytest
 
-## Limiti noti MVP
-
-- Rilevazione firma PAdES euristica (pattern interno PDF).
-- Verifica PDF basata su controlli strutturali leggeri (header/trailer/encryption marker).
-- In GUI il profilo è fisso su `pdua_safe` (CLI supporta tutti i profili YAML).
-- `--output` in CLI riservato per estensione futura.
-
 ## Avvertenze legali
 
-Il software fornisce un supporto tecnico-informatico conservativo e non sostituisce il controllo professionale del difensore sulla conformità del deposito telematico.
+Il software fornisce supporto tecnico-informatico conservativo e non sostituisce il controllo professionale del difensore sulla conformità del deposito telematico.

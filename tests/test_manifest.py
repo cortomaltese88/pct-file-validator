@@ -4,7 +4,7 @@ from pathlib import Path
 from core.sanitizer import sanitize
 
 
-def test_manifest_created(tmp_path: Path):
+def test_reports_created(tmp_path: Path):
     root = tmp_path / "fascicolo"
     root.mkdir()
     sample = root / "atto.pdf"
@@ -16,7 +16,9 @@ def test_manifest_created(tmp_path: Path):
         "filename": {"max_length": 80},
     }
     output, _ = sanitize(root, profile)
-    manifest_path = output / "manifest.json"
-    assert manifest_path.exists()
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert (output / "REPORT.json").exists()
+    assert (output / "REPORT.txt").exists()
+    assert (output / "MANIFEST.csv").exists()
+
+    payload = json.loads((output / "REPORT.json").read_text(encoding="utf-8"))
     assert len(payload["files"]) == 1

@@ -19,8 +19,9 @@ class FileAnalysis:
     issues: list[Issue] = field(default_factory=list)
     suggested_name: str | None = None
     sha256: str | None = None
-    correction_outcome: str = ""
+    correction_outcome: str = "NON ESEGUITA"
     correction_actions: list[str] = field(default_factory=list)
+    output_path: Path | None = None
 
 
 @dataclass(slots=True)
@@ -39,11 +40,12 @@ class AnalysisSummary:
                     "source": str(item.source),
                     "file_type": item.file_type,
                     "status": item.status,
-                    "issues": [issue.__dict__ for issue in item.issues],
+                    "issues": [{"level": issue.level, "code": issue.code, "message": issue.message} for issue in item.issues],
                     "suggested_name": item.suggested_name,
                     "sha256": item.sha256,
                     "correction_outcome": item.correction_outcome,
                     "correction_actions": item.correction_actions,
+                    "output_path": str(item.output_path) if item.output_path else None,
                 }
             )
         return payload

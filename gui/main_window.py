@@ -29,38 +29,53 @@ from PySide6.QtWidgets import (
 
 from core.config import load_config, resolve_profile
 from core.models import AnalysisSummary
-from core.sanitizer import analyze, sanitize
+from core.sanitizer import (
+    OUTCOME_ERROR,
+    OUTCOME_FIXED,
+    OUTCOME_IMPOSSIBLE,
+    OUTCOME_NOT_RUN,
+    OUTCOME_OK,
+    OUTCOME_PARTIAL,
+    analyze,
+    sanitize,
+)
 
 PROBLEM_HELP = {
     "ext_warning": {
         "title": "Formato da verificare",
         "description": "Il formato è ammesso con cautela nel profilo corrente: verificare compatibilità col deposito.",
         "fix": "Quando possibile convertire in PDF/P7M e mantenere naming conservativo.",
+        "app_action": "In correzione automatica il file viene copiato in output e rianalizzato.",
     },
     "ext_forbidden": {
         "title": "Formato non ammesso",
         "description": "Il file non è pronto per il deposito nel formato attuale.",
         "fix": "Convertire il documento in un formato ammesso e rieseguire analisi.",
+        "app_action": "Il file viene marcato IMPOSSIBILE e lasciato fuori dalla correzione.",
     },
     "filename_normalize": {
         "title": "Nome file non conforme",
         "description": "Il nome del file può creare problemi in fase di deposito.",
         "fix": "Usare nome semplice senza spazi/accenti e con caratteri consentiti.",
+        "app_action": "In output il nome viene normalizzato automaticamente con gestione collisioni.",
     },
     "zip_nested": {
         "title": "ZIP non flat",
         "description": "L'archivio contiene cartelle interne, struttura non ideale per il deposito.",
         "fix": "Ricreare ZIP con tutti i file in radice.",
+        "app_action": "La correzione estrae lo ZIP e lo ricompone in formato flat.",
     },
     "zip_ext_forbidden": {
         "title": "File vietati nello ZIP",
         "description": "Sono presenti file non utilizzabili per il deposito telematico.",
         "fix": "Rimuovere i file non ammessi e ricostruire l'archivio.",
+        "app_action": "I file vietati vengono esclusi; se il problema persiste l'esito è IMPOSSIBILE.",
     },
     "zip_mixed_pades": {
         "title": "Mix firmati/non firmati",
         "description": "Nello ZIP sono mescolati PDF firmati e non firmati.",
         "fix": "Separare i documenti firmati da quelli non firmati.",
+        "app_action": "Il warning viene mantenuto come informazione non bloccante.",
     },
 }
 
@@ -422,7 +437,12 @@ class MainWindow(QMainWindow):
     def run_sanitize(self) -> None:
         if not self._ensure_input():
             return
-        output, summary = sanitize(self.input_path, self.profile)
+        output, summary = sanitize(
+            self.input_path,
+            self.profile,
+            output_mode=str(self.output_mode),
+            custom_output_dir=Path(self.custom_output_dir) if self.custom_output_dir else None,
+        )
         self.last_output = output
 
         refreshed = analyze(output, self.profile) if output else summary
@@ -432,12 +452,16 @@ class MainWindow(QMainWindow):
             if source_name in by_name:
                 file_result.correction_outcome = by_name[source_name].correction_outcome
                 file_result.correction_actions = by_name[source_name].correction_actions
+                file_result.output_path = by_name[source_name].output_path
 
         self.last_summary = refreshed
         if output is not None:
             self.settings.setValue("last_output", str(output))
         self._populate_table(refreshed)
         self._append_log(f"Correzione completata: {output}")
+        for file_result in refreshed.files:
+            target = str(file_result.output_path) if file_result.output_path else "n/d"
+            self._append_log(f"{file_result.source.name}: {file_result.correction_outcome} -> {target}")
 
     def _status_badge(self, status: str) -> tuple[str, QColor, QColor]:
         mapping = {
@@ -466,7 +490,8 @@ class MainWindow(QMainWindow):
             chunks.append(
                 f"<b>{entry['title']}</b><br>"
                 f"{entry['description']}<br>"
-                f"<i>Azione consigliata:</i> {entry['fix']}"
+                f"<i>Azione consigliata:</i> {entry['fix']}<br>"
+                f"<i>Cosa fa l'app:</i> {entry.get('app_action', 'Segnala nel report tecnico.')}"
             )
         return "<hr>".join(chunks)
 
@@ -480,10 +505,12 @@ class MainWindow(QMainWindow):
 
     def _correction_tooltip(self, outcome: str) -> str:
         mapping = {
-            "N/D": "Correzione non ancora avviata su questo file.",
-            "✔ Corretto": "Correzione automatica completata con esito positivo.",
-            "⚠ Parzialmente corretto": "Correzione parziale: residuano elementi da verificare.",
-            "✖ Non correggibile": "Intervento automatico non possibile, serve azione manuale.",
+            OUTCOME_NOT_RUN: "Correzione non ancora avviata su questo file.",
+            OUTCOME_OK: "Nessuna modifica necessaria: file già coerente.",
+            OUTCOME_FIXED: "Correzione automatica completata con esito positivo.",
+            OUTCOME_PARTIAL: "Correzione parziale: residuano elementi da verificare.",
+            OUTCOME_IMPOSSIBLE: "Intervento automatico non possibile, serve azione manuale.",
+            OUTCOME_ERROR: "Errore in fase di correzione: verificare log tecnico.",
         }
         return mapping.get(outcome, "Esito non disponibile")
 
@@ -512,7 +539,7 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, 4, QTableWidgetItem(result.suggested_name or ""))
             self.table.item(row, 4).setToolTip(result.suggested_name or "Nome non suggerito")
 
-            correction = result.correction_outcome or "N/D"
+            correction = result.correction_outcome or OUTCOME_NOT_RUN
             correction_item = QTableWidgetItem(correction)
             correction_item.setToolTip(self._correction_tooltip(correction))
             self.table.setItem(row, 5, correction_item)
@@ -536,7 +563,7 @@ class MainWindow(QMainWindow):
 
         lines: list[str] = ["GD LEX - Report sintetico", "=" * 32]
         for item in self.last_summary.files:
-            lines.append(f"{item.source.name}: {item.status.upper()} | {item.correction_outcome or 'N/D'}")
+            lines.append(f"{item.source.name}: {item.status.upper()} | {item.correction_outcome or OUTCOME_NOT_RUN}")
             for issue in item.issues:
                 lines.append(f"  - [{issue.level.upper()}] {issue.code}: {issue.message}")
             for action in item.correction_actions:
