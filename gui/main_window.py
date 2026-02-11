@@ -5,8 +5,8 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, Qt
-from PySide6.QtGui import QColor, QFont, QFontDatabase
+from PySide6.QtCore import QSettings, Qt, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -352,12 +352,13 @@ class MainWindow(QMainWindow):
         self.btn_sanitize.setObjectName("SecondaryButton")
         self.btn_sanitize.setEnabled(False)
         self.btn_open = QPushButton("Apri Output")
+        self.btn_open_report = QPushButton("Apri report tecnico")
         self.btn_copy_report = QPushButton("Copia report")
         self.btn_settings = QPushButton("Impostazioni")
         self.btn_reset = QPushButton("Reset / Clear")
         self.btn_reset.setObjectName("DangerButton")
 
-        for btn in [self.btn_analyze, self.btn_sanitize, self.btn_open, self.btn_copy_report, self.btn_settings, self.btn_reset]:
+        for btn in [self.btn_analyze, self.btn_sanitize, self.btn_open, self.btn_open_report, self.btn_copy_report, self.btn_settings, self.btn_reset]:
             button_row.addWidget(btn)
         root.addLayout(button_row)
 
@@ -368,6 +369,7 @@ class MainWindow(QMainWindow):
         self.btn_analyze.clicked.connect(self.run_analyze)
         self.btn_sanitize.clicked.connect(self.run_sanitize)
         self.btn_open.clicked.connect(self.open_output)
+        self.btn_open_report.clicked.connect(self.open_report_technical)
         self.btn_copy_report.clicked.connect(self.copy_report)
         self.btn_settings.clicked.connect(self.show_settings)
         self.btn_reset.clicked.connect(self.reset)
@@ -547,14 +549,38 @@ class MainWindow(QMainWindow):
             actions = " | ".join(result.correction_actions) if result.correction_actions else "auto"
             self.table.setItem(row, 6, QTableWidgetItem(actions))
 
-        self.details.setPlainText("\n".join(f"{f.source.name}: {f.status}" for f in summary.files))
+        detail_lines = [f"{f.source.name}: {f.status}" for f in summary.files]
+        if self.last_output:
+            detail_lines.append("")
+            detail_lines.append(f"Output depositabile: {self.last_output}")
+            detail_lines.append(f"Report tecnico: {self.last_output / '.gdlex'}")
+        self.details.setPlainText("\n".join(detail_lines))
         self._resize_columns_with_cap(max_width=420)
+
+
+    def _technical_dir(self) -> Path | None:
+        if not self.last_output:
+            return None
+        return self.last_output / ".gdlex"
 
     def open_output(self) -> None:
         if not self.last_output:
             QMessageBox.information(self, "Info", "Nessun output disponibile.")
             return
-        QMessageBox.information(self, "Output", f"Output disponibile in:\n{self.last_output}")
+        ok = QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.last_output)))
+        if not ok:
+            QMessageBox.information(self, "Output", f"Output disponibile in:\n{self.last_output}")
+
+    def open_report_technical(self) -> None:
+        tech = self._technical_dir()
+        if not tech or not tech.exists():
+            QMessageBox.information(self, "Info", "Nessun report tecnico disponibile.")
+            return
+        txt = tech / "REPORT.txt"
+        target = txt if txt.exists() else tech
+        ok = QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
+        if not ok:
+            QMessageBox.information(self, "Report tecnico", f"Report disponibili in:\n{tech}")
 
     def copy_report(self) -> None:
         if self.last_summary is None:

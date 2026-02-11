@@ -19,11 +19,24 @@ OUTCOME_PARTIAL = "PARZIALE"
 OUTCOME_IMPOSSIBLE = "IMPOSSIBILE"
 OUTCOME_ERROR = "ERRORE"
 
+TECHNICAL_FILENAMES = {"report.json", "report.txt", "manifest.csv"}
+
+
+def _is_ignored_path(path: Path) -> bool:
+    lower_parts = [part.lower() for part in path.parts]
+    if ".gdlex" in lower_parts:
+        return True
+    if any(part.endswith("_conforme") or part.endswith("_sanitized") for part in lower_parts):
+        return True
+    if path.name.lower() in TECHNICAL_FILENAMES:
+        return True
+    return False
+
 
 def iter_input_files(input_root: Path) -> list[Path]:
     if input_root.is_file():
-        return [input_root]
-    return [p for p in sorted(input_root.rglob("*")) if p.is_file()]
+        return [] if _is_ignored_path(input_root) else [input_root]
+    return [p for p in sorted(input_root.rglob("*")) if p.is_file() and not _is_ignored_path(p)]
 
 
 def analyze(input_root: Path, profile: dict) -> AnalysisSummary:
@@ -50,9 +63,8 @@ def _safe_target_name(base_name: str, used: set[str]) -> str:
 
 def resolve_output_dir(input_root: Path, output_mode: str = "sibling", custom_output_dir: Path | None = None) -> Path:
     if output_mode == "custom" and custom_output_dir:
-        base = custom_output_dir
         suffix_name = input_root.stem if input_root.is_file() else input_root.name
-        return base / f"{suffix_name}_conforme"
+        return custom_output_dir / f"{suffix_name}_conforme"
 
     if input_root.is_dir():
         return input_root.parent / f"{input_root.name}_conforme"
@@ -136,6 +148,8 @@ def sanitize(
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    tech_dir = output_dir / ".gdlex"
+    tech_dir.mkdir(parents=True, exist_ok=True)
 
     used_targets: set[str] = set()
 
@@ -206,9 +220,9 @@ def sanitize(
 
     manifest_rows = [_build_manifest_row(item) for item in summary.files]
 
-    report_json = output_dir / "REPORT.json"
-    report_txt = output_dir / "REPORT.txt"
-    manifest_csv = output_dir / "MANIFEST.csv"
+    report_json = tech_dir / "REPORT.json"
+    report_txt = tech_dir / "REPORT.txt"
+    manifest_csv = tech_dir / "MANIFEST.csv"
 
     with report_json.open("w", encoding="utf-8") as handle:
         json.dump({"output": str(output_dir), "files": manifest_rows}, handle, indent=2, ensure_ascii=False)
@@ -241,7 +255,8 @@ def _write_report_txt(path: Path, summary: AnalysisSummary, output_dir: Path) ->
     lines = [
         "GD LEX - REPORT CORREZIONE AUTOMATICA",
         "=" * 60,
-        f"Output: {output_dir}",
+        f"Output depositabile: {output_dir}",
+        f"Report tecnico: {path.parent}",
         "",
     ]
     for item in summary.files:
