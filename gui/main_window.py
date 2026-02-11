@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QPlainTextEdit,
     QRadioButton,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -38,28 +39,28 @@ PROBLEM_HELP = {
     },
     "ext_forbidden": {
         "title": "Formato non ammesso",
-        "description": "L'estensione non rientra nei formati previsti dal profilo selezionato.",
+        "description": "Il file non è pronto per il deposito nel formato attuale.",
         "fix": "Convertire il documento in un formato ammesso e rieseguire analisi.",
     },
     "filename_normalize": {
         "title": "Nome file non conforme",
-        "description": "Il nome contiene caratteri o pattern rischiosi per i sistemi PCT/PDUA.",
-        "fix": "Usare solo lettere/numeri, underscore e trattino, senza spazi o accenti.",
+        "description": "Il nome del file può creare problemi in fase di deposito.",
+        "fix": "Usare nome semplice senza spazi/accenti e con caratteri consentiti.",
     },
     "zip_nested": {
         "title": "ZIP non flat",
-        "description": "L'archivio contiene cartelle annidate e non è in formato flat.",
-        "fix": "Ricreare ZIP con file tutti in radice (senza sottocartelle).",
+        "description": "L'archivio contiene cartelle interne, struttura non ideale per il deposito.",
+        "fix": "Ricreare ZIP con tutti i file in radice.",
     },
     "zip_ext_forbidden": {
         "title": "File vietati nello ZIP",
-        "description": "Sono presenti file interni con estensioni non accettate.",
+        "description": "Sono presenti file non utilizzabili per il deposito telematico.",
         "fix": "Rimuovere i file non ammessi e ricostruire l'archivio.",
     },
     "zip_mixed_pades": {
         "title": "Mix firmati/non firmati",
-        "description": "Nello stesso ZIP risultano PDF firmati e non firmati.",
-        "fix": "Separare i firmati dai non firmati in archivi distinti.",
+        "description": "Nello ZIP sono mescolati PDF firmati e non firmati.",
+        "fix": "Separare i documenti firmati da quelli non firmati.",
     },
 }
 
@@ -132,21 +133,22 @@ class DropArea(QFrame):
         self.on_path_dropped = on_path_dropped
         self.setObjectName("DropZone")
         self.setAcceptDrops(True)
+        self.setMinimumHeight(120)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 24, 20, 24)
-        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(8)
 
         icon = QLabel("📂")
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_font = QFont(icon.font())
-        icon_font.setPointSize(30)
+        icon_font.setPointSize(22)
         icon.setFont(icon_font)
 
         title = QLabel("Trascina qui file/cartella da analizzare")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_font = QFont(title.font())
-        title_font.setPointSize(12)
+        title_font.setPointSize(14)
         title_font.setBold(True)
         title.setFont(title_font)
 
@@ -215,11 +217,12 @@ class MainWindow(QMainWindow):
             }
             QFrame#DropZone {
               background: #232323;
-              border: 2px dashed #3a3a3a;
+              border: 2px dashed #3daee9;
               border-radius: 12px;
             }
             QFrame#DropZone:hover, QFrame#DropZone[dragActive="true"] {
-              border-color: #3daee9;
+              border-color: #59c7ff;
+              background: rgba(61, 174, 233, 0.12);
             }
             QTableWidget {
               background: #262626;
@@ -230,7 +233,7 @@ class MainWindow(QMainWindow):
               selection-color: #0b0b0b;
             }
             QTableWidget::item {
-              padding: 4px;
+              padding: 6px;
             }
             QTableWidget::item:hover {
               background: #303030;
@@ -250,6 +253,7 @@ class MainWindow(QMainWindow):
               selection-color: #0b0b0b;
             }
             QPushButton {
+              min-height: 40px;
               border-radius: 6px;
               padding: 8px 12px;
               background: #2a2a2a;
@@ -257,7 +261,8 @@ class MainWindow(QMainWindow):
               border: 1px solid #3a3a3a;
             }
             QPushButton:hover {
-              border: 1px solid #3daee9;
+              border: 1px solid #59c7ff;
+              background: #363636;
             }
             QPushButton#PrimaryButton {
               background: #3daee9;
@@ -280,12 +285,14 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         container = QWidget()
         root = QVBoxLayout(container)
+        root.setContentsMargins(12, 12, 12, 12)
         root.setSpacing(10)
 
         self.drop_area = DropArea(self._set_input_paths)
         root.addWidget(self.drop_area)
 
         load_row = QHBoxLayout()
+        load_row.setSpacing(10)
         self.btn_load_file = QPushButton("Carica file…")
         self.btn_load_folder = QPushButton("Carica cartella…")
         load_row.addWidget(self.btn_load_file)
@@ -293,22 +300,37 @@ class MainWindow(QMainWindow):
         load_row.addStretch(1)
         root.addLayout(load_row)
 
+        self.splitter = QSplitter(Qt.Orientation.Vertical)
+
         self.table = QTableWidget(0, 7)
         self.table.setAlternatingRowColors(True)
         self.table.setHorizontalHeaderLabels(
             ["Originale", "Tipo", "Stato", "Problemi", "Nuovo Nome", "Esito correzione", "Azioni"]
         )
+        self.table.verticalHeader().setDefaultSectionSize(36)
         table_font = QFont(self.table.font())
         table_font.setPointSize(max(table_font.pointSize(), 11))
         self.table.setFont(table_font)
-        root.addWidget(self.table)
 
         self.details = QPlainTextEdit()
         self.details.setReadOnly(True)
         self.details.setPlaceholderText("Dettagli tecnici selezione file")
-        root.addWidget(self.details)
+
+        self.log = QPlainTextEdit()
+        self.log.setReadOnly(True)
+        self.log.setPlaceholderText("Log tecnico")
+        self.log.setStyleSheet("QPlainTextEdit { color: #9aa4b2; }")
+        fixed_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+        self.log.setFont(fixed_font)
+
+        self.splitter.addWidget(self.table)
+        self.splitter.addWidget(self.details)
+        self.splitter.addWidget(self.log)
+        self.splitter.setChildrenCollapsible(False)
+        root.addWidget(self.splitter)
 
         button_row = QHBoxLayout()
+        button_row.setSpacing(10)
         self.btn_analyze = QPushButton("Analizza")
         self.btn_analyze.setObjectName("PrimaryButton")
         self.btn_sanitize = QPushButton("Correggi automaticamente")
@@ -323,14 +345,6 @@ class MainWindow(QMainWindow):
         for btn in [self.btn_analyze, self.btn_sanitize, self.btn_open, self.btn_copy_report, self.btn_settings, self.btn_reset]:
             button_row.addWidget(btn)
         root.addLayout(button_row)
-
-        self.log = QPlainTextEdit()
-        self.log.setReadOnly(True)
-        self.log.setPlaceholderText("Log tecnico")
-        self.log.setStyleSheet("QPlainTextEdit { color: #9aa4b2; }")
-        fixed_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
-        self.log.setFont(fixed_font)
-        root.addWidget(self.log)
 
         self.setCentralWidget(container)
 
@@ -427,18 +441,17 @@ class MainWindow(QMainWindow):
 
     def _status_badge(self, status: str) -> tuple[str, QColor, QColor]:
         mapping = {
-            "ok": (" OK ", QColor("#214b30"), QColor("#95e1b0")),
-            "warning": (" WARNING ", QColor("#5a4618"), QColor("#fdbd3b")),
-            "error": (" ERROR ", QColor("#632727"), QColor("#ff8f8f")),
+            "ok": (" OK ", QColor("#2e8b57"), QColor("#ffffff")),
+            "warning": (" WARNING ", QColor("#f39c12"), QColor("#1b1b1b")),
+            "error": (" ERROR ", QColor("#d64545"), QColor("#ffffff")),
         }
-        label, bg, fg = mapping.get(status, (status.upper(), QColor("#2a2a2a"), QColor("#eaeaea")))
-        return label, bg, fg
+        return mapping.get(status, (status.upper(), QColor("#2a2a2a"), QColor("#eaeaea")))
 
     def _tooltip_for_issues(self, issues: list) -> str:
         if not issues:
             return (
-                "<b>Problemi:</b> nessuno.<br>"
-                "<i>Operativo:</i> il file è pronto alla fase successiva senza interventi specifici."
+                "<b>Nessuna criticità operativa.</b><br>"
+                "Il file risulta utilizzabile nel flusso di preparazione deposito."
             )
         chunks = []
         for issue in issues:
@@ -447,30 +460,30 @@ class MainWindow(QMainWindow):
                 {
                     "title": issue.code,
                     "description": issue.message,
-                    "fix": "Valutare intervento manuale prima del deposito.",
+                    "fix": "Intervenire manualmente e ripetere l'analisi.",
                 },
             )
             chunks.append(
                 f"<b>{entry['title']}</b><br>"
                 f"{entry['description']}<br>"
-                f"<i>Come risolvere:</i> {entry['fix']}"
+                f"<i>Azione consigliata:</i> {entry['fix']}"
             )
         return "<hr>".join(chunks)
 
     def _status_tooltip(self, status: str) -> str:
         info = {
-            "ok": "Stato OK: non sono stati rilevati blocchi di deposito.",
-            "warning": "Stato WARNING: rilevate criticità non bloccanti ma da verificare operativamente.",
-            "error": "Stato ERROR: presenza di errori che possono impedire il deposito.",
+            "ok": "Stato OK: file pronto o comunque non bloccante per il deposito.",
+            "warning": "Stato WARNING: richiede verifica operativa prima dell'invio.",
+            "error": "Stato ERROR: il file va corretto perché può bloccare il deposito.",
         }
         return info.get(status, "Stato non disponibile")
 
     def _correction_tooltip(self, outcome: str) -> str:
         mapping = {
-            "N/D": "Correzione non ancora eseguita: avviare prima il comando di correzione.",
-            "✔ Corretto": "Correzione applicata con successo nella copia di output.",
-            "⚠ Parzialmente corretto": "Correzione parziale: restano elementi da controllo manuale.",
-            "✖ Non correggibile": "Correzione automatica non possibile: necessario intervento manuale.",
+            "N/D": "Correzione non ancora avviata su questo file.",
+            "✔ Corretto": "Correzione automatica completata con esito positivo.",
+            "⚠ Parzialmente corretto": "Correzione parziale: residuano elementi da verificare.",
+            "✖ Non correggibile": "Intervento automatico non possibile, serve azione manuale.",
         }
         return mapping.get(outcome, "Esito non disponibile")
 
@@ -570,6 +583,12 @@ class MainWindow(QMainWindow):
         if geometry is not None:
             self.restoreGeometry(geometry)
 
+        splitter_sizes = self.settings.value("splitter_sizes")
+        if splitter_sizes:
+            self.splitter.setSizes([int(v) for v in splitter_sizes])
+        else:
+            self.splitter.setSizes([60, 20, 20])
+
         self.output_mode = self.settings.value("output_mode", "sibling")
         self.custom_output_dir = self.settings.value("custom_output_dir", "")
 
@@ -592,6 +611,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):  # noqa: N802
         self.settings.setValue("window_geometry", self.saveGeometry())
+        self.settings.setValue("splitter_sizes", self.splitter.sizes())
         self.settings.setValue("output_mode", self.output_mode)
         self.settings.setValue("custom_output_dir", self.custom_output_dir)
         if self.input_path is not None:
