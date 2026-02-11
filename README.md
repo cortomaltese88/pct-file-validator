@@ -82,8 +82,8 @@ Trigger principali (default studio):
 - path output oltre `max_output_path_len=180`
 
 Comportamento:
-- prova ad assegnare un nome parlante (es. `Ricevuta_PagoPA.pdf`, `Atto_Precetto.pdf`)
-- conserva suffix rilevanti come `_signed` / `_firmato`
+- prova ad assegnare un nome parlante (es. `Ricevuta_PagoPA.pdf`, `Atto_Precetto.pdf`, `PEC_MPS.msg`)
+- conserva suffix rilevanti come `_signed` / `_firmato` (evitando duplicazioni tipo `_signed_signed`)
 - evita collisioni con suffissi `_02`, `_03`, ...
 - traccia originale -> nuovo nei report tecnici in `.gdlex`
 

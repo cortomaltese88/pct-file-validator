@@ -14,8 +14,16 @@ def detect_uuid_like(name: str) -> bool:
     return bool(UUID_RE.search(stem) or LONG_RANDOM_RE.search(stem))
 
 
+def _extract_pec_identifier(stem: str) -> str | None:
+    tokens = [t for t in re.split(r"[^A-Za-z0-9]+", stem) if t]
+    blacklist = {"pec", "email", "posta", "elettronica", "signed", "firmato", "pdf", "msg", "eml"}
+    candidates = [t for t in tokens if t.lower() not in blacklist and len(t) >= 2]
+    return candidates[0].upper() if candidates else None
+
+
 def classify_filename(name: str) -> str | None:
-    lower = Path(name).stem.lower().replace("-", " ").replace("_", " ")
+    stem = Path(name).stem
+    lower = stem.lower().replace("-", " ").replace("_", " ")
     if "pagopa" in lower or "ricevuta" in lower:
         return "Ricevuta_PagoPA"
     if "contributo" in lower and "unificat" in lower:
@@ -28,10 +36,13 @@ def classify_filename(name: str) -> str | None:
         return "Decreto_Esecutorieta"
     if "attestazione" in lower and "conform" in lower:
         return "Attestazione_Conformita"
+    if "pec" in lower or "email" in lower or "posta elettronica" in lower:
+        identifier = _extract_pec_identifier(stem)
+        if identifier:
+            return f"PEC_{identifier}"
+        return "PEC_01"
     if "notifica" in lower or "ufficiale giudiziario" in lower:
         return "Notifica_Ufficiale_Giudiziario"
-    if "pec" in lower or "email" in lower or "posta elettronica" in lower:
-        return "PEC"
     return None
 
 
@@ -48,6 +59,17 @@ def ensure_unique(nameset: set[str], candidate: str) -> str:
             nameset.add(alt)
             return alt
         idx += 1
+
+
+def _signed_suffix(stem: str) -> str:
+    low = stem.lower()
+    has_signed = "_signed" in low or low.endswith("signed")
+    has_firmato = "firmato" in low
+    if has_signed:
+        return "_signed"
+    if has_firmato:
+        return "_firmato"
+    return ""
 
 
 def smart_rename(name: str, ext: str, opts: dict, context: dict | None = None) -> tuple[str, list[str]]:
@@ -85,15 +107,14 @@ def smart_rename(name: str, ext: str, opts: dict, context: dict | None = None) -
         return original, []
 
     label = classify_filename(original) or sanitize_filename(stem, max_len=max_filename_len)
+    suffix = _signed_suffix(stem)
 
-    signed_suffix = ""
-    low_stem = stem.lower()
-    if "_signed" in low_stem or " signed" in low_stem:
-        signed_suffix = "_signed"
-    elif "firmato" in low_stem:
-        signed_suffix = "_firmato"
+    if suffix and label.lower().endswith(suffix):
+        candidate_stem = label
+    else:
+        candidate_stem = f"{label}{suffix}"
 
-    candidate = sanitize_filename(f"{label}{signed_suffix}{extension}", max_len=max_filename_len)
+    candidate = sanitize_filename(f"{candidate_stem}{extension}", max_len=max_filename_len)
 
     if output_dir and len(str(Path(output_dir) / candidate)) > max_output_path_len:
         base = Path(candidate).stem
@@ -105,4 +126,6 @@ def smart_rename(name: str, ext: str, opts: dict, context: dict | None = None) -
             candidate = sanitize_filename(candidate, max_len=max(20, max_filename_len - 10))
         reasons.append("path_too_long_mitigated")
 
+    # safety net against duplicated suffixes
+    candidate = candidate.replace("_signed_signed", "_signed").replace("_firmato_firmato", "_firmato")
     return candidate, reasons

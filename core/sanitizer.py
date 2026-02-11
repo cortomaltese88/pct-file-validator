@@ -10,6 +10,7 @@ from pathlib import Path
 from core.fs_ops import sha256_file
 from core.models import AnalysisSummary, FileAnalysis, Issue
 from core.normalizer import sanitize_filename
+from core.reporting import build_technical_report
 from core.smart_namer import ensure_unique, smart_rename
 from core.validators import validate_path
 
@@ -130,6 +131,7 @@ def sanitize(
     output_mode: str = "sibling",
     custom_output_dir: Path | None = None,
     smart_opts: dict | None = None,
+    create_backup: bool = False,
 ) -> tuple[Path | None, AnalysisSummary]:
     summary = analyze(input_root, profile)
     if dry_run:
@@ -141,6 +143,14 @@ def sanitize(
     output_dir.mkdir(parents=True, exist_ok=True)
     tech_dir = output_dir / ".gdlex"
     tech_dir.mkdir(parents=True, exist_ok=True)
+
+    if create_backup:
+        backup_dir = tech_dir / "backup_originali"
+        if input_root.is_dir():
+            shutil.copytree(input_root, backup_dir, dirs_exist_ok=True)
+        else:
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(input_root, backup_dir / input_root.name)
 
     used_targets: set[str] = set()
     smart_opts = smart_opts or {"enabled": True, "max_filename_len": 60, "max_output_path_len": 180}
@@ -210,6 +220,11 @@ def sanitize(
                 actions.append("Warning mantenuto: mixed PAdES rilevato (non bloccante)")
 
             actions.append(f"Output scritto in: {dst}")
+            result.correction_actions = actions
+            result.status = reanalysis.status
+            result.issues = list(reanalysis.issues)
+            result.suggested_name = target_name
+
             if rename_reasons:
                 result.issues.append(
                     Issue(
@@ -226,10 +241,6 @@ def sanitize(
                         f"Path lungo mitigato per evitare problemi di sincronizzazione/cartelle annidate: {target_name}.",
                     )
                 )
-            result.correction_actions = actions
-            result.status = reanalysis.status
-            result.issues = reanalysis.issues
-            result.suggested_name = reanalysis.suggested_name
 
         except Exception as exc:  # pragma: no cover
             result.correction_outcome = OUTCOME_ERROR
@@ -269,23 +280,13 @@ def _write_manifest_csv(path: Path, summary: AnalysisSummary) -> None:
 
 
 def _write_report_txt(path: Path, summary: AnalysisSummary, output_dir: Path) -> None:
-    lines = [
+    header = [
         "GD LEX - REPORT CORREZIONE AUTOMATICA",
         "=" * 60,
         f"Output depositabile: {output_dir}",
         f"Report tecnico: {path.parent}",
         "",
     ]
-    for item in summary.files:
-        lines.append(f"{item.source.name} -> {item.correction_outcome}")
-        lines.append(f"  Stato finale: {item.status.upper()}")
-        if item.output_path:
-            lines.append(f"  Output: {item.output_path}")
-        for action in item.correction_actions:
-            lines.append(f"  - {action}")
-        for issue in item.issues:
-            lines.append(f"  [ISSUE] {issue.code}: {issue.message}")
-        lines.append("")
-
+    body = build_technical_report(summary)
     with path.open("w", encoding="utf-8") as handle:
-        handle.write("\n".join(lines))
+        handle.write("\n".join(header) + body)

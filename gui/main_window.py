@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QSplitter,
     QSpinBox,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
 
 from core.config import load_config, resolve_profile
 from core.models import AnalysisSummary
+from core.reporting import build_synthetic_report, build_technical_report
 from core.sanitizer import (
     OUTCOME_ERROR,
     OUTCOME_FIXED,
@@ -95,7 +97,7 @@ PROBLEM_HELP = {
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, parent: QWidget, output_mode: str, custom_output_dir: str, smart_enabled: bool, max_filename_len: int, max_output_path_len: int):
+    def __init__(self, parent: QWidget, output_mode: str, custom_output_dir: str, smart_enabled: bool, max_filename_len: int, max_output_path_len: int, create_backup: bool):
         super().__init__(parent)
         self.setWindowTitle("Impostazioni output")
         self.resize(560, 220)
@@ -121,6 +123,10 @@ class SettingsDialog(QDialog):
         self.chk_smart = QCheckBox("Smart rename attivo")
         self.chk_smart.setChecked(smart_enabled)
         root.addWidget(self.chk_smart)
+
+        self.chk_backup = QCheckBox("Crea backup originali (.gdlex)")
+        self.chk_backup.setChecked(create_backup)
+        root.addWidget(self.chk_backup)
 
         smart_row = QHBoxLayout()
         self.spin_max_filename = QSpinBox()
@@ -170,9 +176,16 @@ class SettingsDialog(QDialog):
         self.edit_custom.setEnabled(enabled)
         self.btn_browse.setEnabled(enabled)
 
-    def values(self) -> tuple[str, str, bool, int, int]:
+    def values(self) -> tuple[str, str, bool, int, int, bool]:
         mode = "custom" if self.rb_custom.isChecked() else "sibling"
-        return mode, self.edit_custom.text().strip(), self.chk_smart.isChecked(), self.spin_max_filename.value(), self.spin_max_output_path.value()
+        return (
+            mode,
+            self.edit_custom.text().strip(),
+            self.chk_smart.isChecked(),
+            self.spin_max_filename.value(),
+            self.spin_max_output_path.value(),
+            self.chk_backup.isChecked(),
+        )
 
 
 class DropArea(QFrame):
@@ -250,6 +263,7 @@ class MainWindow(QMainWindow):
         self.smart_rename_enabled = self.settings.value("smart_rename_enabled", True, type=bool)
         self.max_filename_len = int(self.settings.value("max_filename_len", 60))
         self.max_output_path_len = int(self.settings.value("max_output_path_len", 180))
+        self.create_backup = self.settings.value("create_backup", False, type=bool)
 
         self.config = load_config()
         self.profile = resolve_profile(self.config, "pdua_safe")
@@ -353,10 +367,10 @@ class MainWindow(QMainWindow):
 
         self.splitter = QSplitter(Qt.Orientation.Vertical)
 
-        self.table = QTableWidget(0, 7)
+        self.table = QTableWidget(0, 8)
         self.table.setAlternatingRowColors(True)
         self.table.setHorizontalHeaderLabels(
-            ["Originale", "Tipo", "Stato", "Problemi", "Nuovo Nome", "Esito correzione", "Azioni"]
+            ["Originale", "Tipo", "Stato", "Problemi", "Nuovo Nome", "Esito correzione", "Output", "Azioni"]
         )
         self.table.verticalHeader().setDefaultSectionSize(36)
         table_font = QFont(self.table.font())
@@ -367,16 +381,25 @@ class MainWindow(QMainWindow):
         self.details.setReadOnly(True)
         self.details.setPlaceholderText("Dettagli tecnici selezione file")
 
+        self.report_tabs = QTabWidget()
+        self.report_synthetic = QPlainTextEdit()
+        self.report_synthetic.setReadOnly(True)
+        self.report_synthetic.setPlaceholderText("Report sintetico")
+
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        self.log.setPlaceholderText("Log tecnico")
+        self.log.setPlaceholderText("Report tecnico")
         self.log.setStyleSheet("QPlainTextEdit { color: #9aa4b2; }")
         fixed_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         self.log.setFont(fixed_font)
+        self.report_synthetic.setFont(fixed_font)
+
+        self.report_tabs.addTab(self.report_synthetic, "Sintetico")
+        self.report_tabs.addTab(self.log, "Tecnico")
 
         self.splitter.addWidget(self.table)
         self.splitter.addWidget(self.details)
-        self.splitter.addWidget(self.log)
+        self.splitter.addWidget(self.report_tabs)
         self.splitter.setChildrenCollapsible(False)
         root.addWidget(self.splitter)
 
@@ -485,6 +508,7 @@ class MainWindow(QMainWindow):
                 "max_filename_len": self.max_filename_len,
                 "max_output_path_len": self.max_output_path_len,
             },
+            create_backup=self.create_backup,
         )
         self.last_output = output
 
@@ -587,8 +611,15 @@ class MainWindow(QMainWindow):
             correction_item.setToolTip(self._correction_tooltip(correction))
             self.table.setItem(row, 5, correction_item)
 
+            output_text = str(result.output_path) if result.output_path else "-"
+            output_item = QTableWidgetItem(output_text)
+            output_item.setToolTip(output_text)
+            self.table.setItem(row, 6, output_item)
+
             actions = " | ".join(result.correction_actions) if result.correction_actions else "auto"
-            self.table.setItem(row, 6, QTableWidgetItem(actions))
+            actions_item = QTableWidgetItem(actions)
+            actions_item.setToolTip(actions)
+            self.table.setItem(row, 7, actions_item)
 
         detail_lines = [f"{f.source.name}: {f.status}" for f in summary.files]
         if self.last_output:
@@ -596,6 +627,8 @@ class MainWindow(QMainWindow):
             detail_lines.append(f"Output depositabile: {self.last_output}")
             detail_lines.append(f"Report tecnico: {self.last_output / '.gdlex'}")
         self.details.setPlainText("\n".join(detail_lines))
+        self.report_synthetic.setPlainText(build_synthetic_report(summary))
+        self.log.setPlainText(build_technical_report(summary))
         self._resize_columns_with_cap(max_width=420)
 
 
@@ -628,15 +661,9 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Info", "Nessun report disponibile. Eseguire prima un'analisi.")
             return
 
-        lines: list[str] = ["GD LEX - Report sintetico", "=" * 32]
-        for item in self.last_summary.files:
-            lines.append(f"{item.source.name}: {item.status.upper()} | {item.correction_outcome or OUTCOME_NOT_RUN}")
-            for issue in item.issues:
-                lines.append(f"  - [{issue.level.upper()}] {issue.code}: {issue.message}")
-            for action in item.correction_actions:
-                lines.append(f"    * {action}")
-
-        QApplication.clipboard().setText("\n".join(lines))
+        synthetic = build_synthetic_report(self.last_summary)
+        technical = build_technical_report(self.last_summary)
+        QApplication.clipboard().setText(synthetic + "\n\n" + technical)
         self._append_log("Report copiato negli appunti.")
 
     def show_settings(self) -> None:
@@ -647,21 +674,24 @@ class MainWindow(QMainWindow):
             self.smart_rename_enabled,
             self.max_filename_len,
             self.max_output_path_len,
+            self.create_backup,
         )
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            mode, custom_dir, smart_enabled, max_filename_len, max_output_path_len = dialog.values()
+            mode, custom_dir, smart_enabled, max_filename_len, max_output_path_len, create_backup = dialog.values()
             self.output_mode = mode
             self.custom_output_dir = custom_dir
             self.smart_rename_enabled = smart_enabled
             self.max_filename_len = max_filename_len
             self.max_output_path_len = max_output_path_len
+            self.create_backup = create_backup
             self.settings.setValue("output_mode", self.output_mode)
             self.settings.setValue("custom_output_dir", self.custom_output_dir)
             self.settings.setValue("smart_rename_enabled", self.smart_rename_enabled)
             self.settings.setValue("max_filename_len", self.max_filename_len)
             self.settings.setValue("max_output_path_len", self.max_output_path_len)
+            self.settings.setValue("create_backup", self.create_backup)
             self._append_log(
-                f"Impostazioni salvate: output_mode={self.output_mode}, custom_output_dir={self.custom_output_dir or '-'}, smart_rename={self.smart_rename_enabled}, max_filename_len={self.max_filename_len}, max_output_path_len={self.max_output_path_len}"
+                f"Impostazioni salvate: output_mode={self.output_mode}, custom_output_dir={self.custom_output_dir or '-'}, smart_rename={self.smart_rename_enabled}, max_filename_len={self.max_filename_len}, max_output_path_len={self.max_output_path_len}, backup={self.create_backup}"
             )
 
     def reset(self) -> None:
@@ -671,6 +701,7 @@ class MainWindow(QMainWindow):
         self.btn_sanitize.setEnabled(False)
         self.table.setRowCount(0)
         self.details.clear()
+        self.report_synthetic.clear()
         self.log.clear()
         self._append_log("Stato resettato.")
 
@@ -701,6 +732,7 @@ class MainWindow(QMainWindow):
         self.smart_rename_enabled = self.settings.value("smart_rename_enabled", True, type=bool)
         self.max_filename_len = int(self.settings.value("max_filename_len", 60))
         self.max_output_path_len = int(self.settings.value("max_output_path_len", 180))
+        self.create_backup = self.settings.value("create_backup", False, type=bool)
 
         saved_input = self.settings.value("last_input")
         if saved_input:
@@ -727,6 +759,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue("smart_rename_enabled", self.smart_rename_enabled)
         self.settings.setValue("max_filename_len", self.max_filename_len)
         self.settings.setValue("max_output_path_len", self.max_output_path_len)
+        self.settings.setValue("create_backup", self.create_backup)
         if self.input_path is not None:
             self.settings.setValue("last_input", str(self.input_path))
         if self.last_output is not None:
