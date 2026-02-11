@@ -71,6 +71,24 @@ La pipeline lavora su tutti i risultati di analisi:
    - `ERRORE`
 5. Continua anche se un file fallisce (error handling per-file).
 
+
+## Smart Rename (v2 studio)
+
+Per ridurre rischi di path troppo lunghi (OneDrive/cartelle annidate) la correzione automatica include uno Smart Rename configurabile.
+
+Trigger principali (default studio):
+- nome file oltre `max_filename_len=60`
+- pattern UUID/random nel nome
+- path output oltre `max_output_path_len=180`
+
+Comportamento:
+- prova ad assegnare un nome parlante (es. `Ricevuta_PagoPA.pdf`, `Atto_Precetto.pdf`)
+- conserva suffix rilevanti come `_signed` / `_firmato`
+- evita collisioni con suffissi `_02`, `_03`, ...
+- traccia originale -> nuovo nei report tecnici in `.gdlex`
+
+In GUI (Impostazioni) puoi attivare/disattivare Smart Rename e regolare le due soglie.
+
 ## Limiti noti
 
 - `zip_mixed_pades` resta warning informativo (non split automatico in questa versione).

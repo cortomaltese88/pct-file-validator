@@ -8,8 +8,9 @@ import zipfile
 from pathlib import Path
 
 from core.fs_ops import sha256_file
-from core.models import AnalysisSummary, FileAnalysis
+from core.models import AnalysisSummary, FileAnalysis, Issue
 from core.normalizer import sanitize_filename
+from core.smart_namer import ensure_unique, smart_rename
 from core.validators import validate_path
 
 OUTCOME_NOT_RUN = "NON ESEGUITA"
@@ -47,18 +48,7 @@ def analyze(input_root: Path, profile: dict) -> AnalysisSummary:
 
 
 def _safe_target_name(base_name: str, used: set[str]) -> str:
-    if base_name not in used:
-        used.add(base_name)
-        return base_name
-    stem = Path(base_name).stem
-    ext = Path(base_name).suffix
-    index = 2
-    while True:
-        candidate = f"{stem}_{index:02d}{ext}"
-        if candidate not in used:
-            used.add(candidate)
-            return candidate
-        index += 1
+    return ensure_unique(used, base_name)
 
 
 def resolve_output_dir(input_root: Path, output_mode: str = "sibling", custom_output_dir: Path | None = None) -> Path:
@@ -139,6 +129,7 @@ def sanitize(
     dry_run: bool = False,
     output_mode: str = "sibling",
     custom_output_dir: Path | None = None,
+    smart_opts: dict | None = None,
 ) -> tuple[Path | None, AnalysisSummary]:
     summary = analyze(input_root, profile)
     if dry_run:
@@ -152,12 +143,20 @@ def sanitize(
     tech_dir.mkdir(parents=True, exist_ok=True)
 
     used_targets: set[str] = set()
+    smart_opts = smart_opts or {"enabled": True, "max_filename_len": 60, "max_output_path_len": 180}
 
     for result in summary.files:
         src = result.source
         max_len = int(profile.get("filename", {}).get("max_length", 80))
-        clean_name = sanitize_filename(src.name, max_len=max_len)
-        target_name = _safe_target_name(clean_name, used_targets)
+        merged_opts = {
+            "enabled": smart_opts.get("enabled", True),
+            "max_filename_len": int(smart_opts.get("max_filename_len", 60)),
+            "max_output_path_len": int(smart_opts.get("max_output_path_len", 180)),
+        }
+        candidate, rename_reasons = smart_rename(src.name, src.suffix, merged_opts, {"output_dir": output_dir})
+        if not candidate:
+            candidate = sanitize_filename(src.name, max_len=max_len)
+        target_name = _safe_target_name(candidate, used_targets)
         dst = output_dir / target_name
 
         try:
@@ -173,6 +172,9 @@ def sanitize(
             actions: list[str] = []
             changed = False
             impossible = False
+            if target_name != src.name:
+                actions.append(f"Smart rename: {src.name} -> {target_name}")
+                changed = True
 
             if ext == "zip":
                 zip_actions, impossible = _sanitize_zip(src, dst, profile)
@@ -182,7 +184,6 @@ def sanitize(
                 shutil.copy2(src, dst)
                 if dst.name != src.name:
                     actions.append(f"Rinominato file: {src.name} -> {dst.name}")
-                    changed = True
                 else:
                     actions.append("Copia senza modifiche necessarie")
 
@@ -209,6 +210,22 @@ def sanitize(
                 actions.append("Warning mantenuto: mixed PAdES rilevato (non bloccante)")
 
             actions.append(f"Output scritto in: {dst}")
+            if rename_reasons:
+                result.issues.append(
+                    Issue(
+                        "info",
+                        "smart_rename_applied",
+                        f"Smart rename applicato: {src.name} -> {target_name} (motivi: {', '.join(rename_reasons)}).",
+                    )
+                )
+            if "path_too_long_mitigated" in rename_reasons:
+                result.issues.append(
+                    Issue(
+                        "warning",
+                        "path_too_long_mitigated",
+                        f"Path lungo mitigato per evitare problemi di sincronizzazione/cartelle annidate: {target_name}.",
+                    )
+                )
             result.correction_actions = actions
             result.status = reanalysis.status
             result.issues = reanalysis.issues

@@ -9,6 +9,7 @@ from PySide6.QtCore import QSettings, Qt, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QDialog,
     QFileDialog,
     QFrame,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QRadioButton,
     QSplitter,
+    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -77,11 +79,23 @@ PROBLEM_HELP = {
         "fix": "Separare i documenti firmati da quelli non firmati.",
         "app_action": "Il warning viene mantenuto come informazione non bloccante.",
     },
+    "smart_rename_applied": {
+        "title": "Smart rename applicato",
+        "description": "Il nome file è stato reso più parlante per deposito e gestione pratica.",
+        "fix": "Nessuna azione richiesta: verificare solo la coerenza descrittiva.",
+        "app_action": "L'app ha rinominato il file in output mantenendo estensione e tracciabilità.",
+    },
+    "path_too_long_mitigated": {
+        "title": "Path troppo lungo mitigato",
+        "description": "Il nome è stato accorciato per evitare problemi tipici in OneDrive/cartelle annidate.",
+        "fix": "Mantenere strutture cartella più corte e limitare profondità percorsi.",
+        "app_action": "L'app ha ridotto il basename per rientrare nella soglia di sicurezza path.",
+    },
 }
 
 
 class SettingsDialog(QDialog):
-    def __init__(self, parent: QWidget, output_mode: str, custom_output_dir: str):
+    def __init__(self, parent: QWidget, output_mode: str, custom_output_dir: str, smart_enabled: bool, max_filename_len: int, max_output_path_len: int):
         super().__init__(parent)
         self.setWindowTitle("Impostazioni output")
         self.resize(560, 220)
@@ -103,6 +117,25 @@ class SettingsDialog(QDialog):
         custom_row.addWidget(self.edit_custom)
         custom_row.addWidget(self.btn_browse)
         root.addLayout(custom_row)
+
+        self.chk_smart = QCheckBox("Smart rename attivo")
+        self.chk_smart.setChecked(smart_enabled)
+        root.addWidget(self.chk_smart)
+
+        smart_row = QHBoxLayout()
+        self.spin_max_filename = QSpinBox()
+        self.spin_max_filename.setRange(20, 255)
+        self.spin_max_filename.setValue(max_filename_len)
+        self.spin_max_output_path = QSpinBox()
+        self.spin_max_output_path.setRange(80, 400)
+        self.spin_max_output_path.setValue(max_output_path_len)
+        smart_row.addWidget(QLabel("Max filename len"))
+        smart_row.addWidget(self.spin_max_filename)
+        smart_row.addSpacing(10)
+        smart_row.addWidget(QLabel("Max output path len"))
+        smart_row.addWidget(self.spin_max_output_path)
+        smart_row.addStretch(1)
+        root.addLayout(smart_row)
 
         self.note = QLabel(
             "Modalità sibling: <dirname(input)>/_PCT_READY_YYYYMMDD_HHMMSS/\n"
@@ -137,9 +170,9 @@ class SettingsDialog(QDialog):
         self.edit_custom.setEnabled(enabled)
         self.btn_browse.setEnabled(enabled)
 
-    def values(self) -> tuple[str, str]:
+    def values(self) -> tuple[str, str, bool, int, int]:
         mode = "custom" if self.rb_custom.isChecked() else "sibling"
-        return mode, self.edit_custom.text().strip()
+        return mode, self.edit_custom.text().strip(), self.chk_smart.isChecked(), self.spin_max_filename.value(), self.spin_max_output_path.value()
 
 
 class DropArea(QFrame):
@@ -214,6 +247,9 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("GD LEX", "PCT-PDUA-Validator")
         self.output_mode = self.settings.value("output_mode", "sibling")
         self.custom_output_dir = self.settings.value("custom_output_dir", "")
+        self.smart_rename_enabled = self.settings.value("smart_rename_enabled", True, type=bool)
+        self.max_filename_len = int(self.settings.value("max_filename_len", 60))
+        self.max_output_path_len = int(self.settings.value("max_output_path_len", 180))
 
         self.config = load_config()
         self.profile = resolve_profile(self.config, "pdua_safe")
@@ -444,6 +480,11 @@ class MainWindow(QMainWindow):
             self.profile,
             output_mode=str(self.output_mode),
             custom_output_dir=Path(self.custom_output_dir) if self.custom_output_dir else None,
+            smart_opts={
+                "enabled": self.smart_rename_enabled,
+                "max_filename_len": self.max_filename_len,
+                "max_output_path_len": self.max_output_path_len,
+            },
         )
         self.last_output = output
 
@@ -599,15 +640,28 @@ class MainWindow(QMainWindow):
         self._append_log("Report copiato negli appunti.")
 
     def show_settings(self) -> None:
-        dialog = SettingsDialog(self, self.output_mode, self.custom_output_dir)
+        dialog = SettingsDialog(
+            self,
+            self.output_mode,
+            self.custom_output_dir,
+            self.smart_rename_enabled,
+            self.max_filename_len,
+            self.max_output_path_len,
+        )
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            mode, custom_dir = dialog.values()
+            mode, custom_dir, smart_enabled, max_filename_len, max_output_path_len = dialog.values()
             self.output_mode = mode
             self.custom_output_dir = custom_dir
+            self.smart_rename_enabled = smart_enabled
+            self.max_filename_len = max_filename_len
+            self.max_output_path_len = max_output_path_len
             self.settings.setValue("output_mode", self.output_mode)
             self.settings.setValue("custom_output_dir", self.custom_output_dir)
+            self.settings.setValue("smart_rename_enabled", self.smart_rename_enabled)
+            self.settings.setValue("max_filename_len", self.max_filename_len)
+            self.settings.setValue("max_output_path_len", self.max_output_path_len)
             self._append_log(
-                f"Impostazioni salvate: output_mode={self.output_mode}, custom_output_dir={self.custom_output_dir or '-'}"
+                f"Impostazioni salvate: output_mode={self.output_mode}, custom_output_dir={self.custom_output_dir or '-'}, smart_rename={self.smart_rename_enabled}, max_filename_len={self.max_filename_len}, max_output_path_len={self.max_output_path_len}"
             )
 
     def reset(self) -> None:
@@ -644,6 +698,9 @@ class MainWindow(QMainWindow):
 
         self.output_mode = self.settings.value("output_mode", "sibling")
         self.custom_output_dir = self.settings.value("custom_output_dir", "")
+        self.smart_rename_enabled = self.settings.value("smart_rename_enabled", True, type=bool)
+        self.max_filename_len = int(self.settings.value("max_filename_len", 60))
+        self.max_output_path_len = int(self.settings.value("max_output_path_len", 180))
 
         saved_input = self.settings.value("last_input")
         if saved_input:
@@ -667,6 +724,9 @@ class MainWindow(QMainWindow):
         self.settings.setValue("splitter_sizes", self.splitter.sizes())
         self.settings.setValue("output_mode", self.output_mode)
         self.settings.setValue("custom_output_dir", self.custom_output_dir)
+        self.settings.setValue("smart_rename_enabled", self.smart_rename_enabled)
+        self.settings.setValue("max_filename_len", self.max_filename_len)
+        self.settings.setValue("max_output_path_len", self.max_output_path_len)
         if self.input_path is not None:
             self.settings.setValue("last_input", str(self.input_path))
         if self.last_output is not None:
