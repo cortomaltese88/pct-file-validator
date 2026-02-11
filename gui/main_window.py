@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtGui import QColor, QFontDatabase, QPalette
+from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -29,20 +29,41 @@ class DropArea(QFrame):
     def __init__(self, on_path_dropped):
         super().__init__()
         self.on_path_dropped = on_path_dropped
+        self.setObjectName("DropZone")
         self.setAcceptDrops(True)
         self.setFrameShape(QFrame.Shape.StyledPanel)
-        self.setStyleSheet("QFrame { border: 2px dashed #6b7280; border-radius: 6px; background: #f8fafc; }")
+
         layout = QVBoxLayout(self)
-        label = QLabel("Trascina qui file o cartella")
-        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(label)
+        layout.setContentsMargins(18, 20, 18, 20)
+        layout.setSpacing(8)
+
+        title = QLabel("Trascina qui file/cartella da analizzare")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        subtitle = QLabel("Oppure usa i pulsanti sotto")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
 
     def dragEnterEvent(self, event):  # noqa: N802
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
+            self.setProperty("dragActive", True)
+            self.style().unpolish(self)
+            self.style().polish(self)
+
+    def dragLeaveEvent(self, event):  # noqa: N802
+        self.setProperty("dragActive", False)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        super().dragLeaveEvent(event)
 
     def dropEvent(self, event):  # noqa: N802
         urls = event.mimeData().urls()
+        self.setProperty("dragActive", False)
+        self.style().unpolish(self)
+        self.style().polish(self)
         if not urls:
             return
         path = Path(urls[0].toLocalFile())
@@ -62,53 +83,61 @@ class MainWindow(QMainWindow):
         self.config = load_config()
         self.profile = resolve_profile(self.config, "pdua_safe")
 
-        self._setup_palette()
+        self._setup_styles()
         self._build_ui()
         self._restore_settings()
 
-    def _setup_palette(self) -> None:
-        palette = QPalette()
-
-        # GD LEX "light" sobrio
-        window = QColor("#f1f5f9")
-        base = QColor("#ffffff")
-        alt_base = QColor("#f8fafc")
-        text = QColor("#0f172a")
-        disabled_text = QColor("#64748b")
-
-        button = QColor("#0f172a")
-        button_text = QColor("#ffffff")
-
-        highlight = QColor("#2563eb")
-        highlighted_text = QColor("#ffffff")
-
-        palette.setColor(QPalette.ColorRole.Window, window)
-        palette.setColor(QPalette.ColorRole.WindowText, text)
-        palette.setColor(QPalette.ColorRole.Base, base)
-        palette.setColor(QPalette.ColorRole.AlternateBase, alt_base)
-        palette.setColor(QPalette.ColorRole.Text, text)
-        palette.setColor(QPalette.ColorRole.Button, button)
-        palette.setColor(QPalette.ColorRole.ButtonText, button_text)
-        palette.setColor(QPalette.ColorRole.Highlight, highlight)
-        palette.setColor(QPalette.ColorRole.HighlightedText, highlighted_text)
-
-        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, disabled_text)
-        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, disabled_text)
-
-        self.setPalette(palette)
-
-        # “cintura e bretelle”: assicura contrasto in tabella e editor anche su tema/override strani
-        self.setStyleSheet("""
-            QTableWidget { background: #ffffff; color: #0f172a; gridline-color: #e5e7eb; }
-            QTableWidget::item { color: #0f172a; }
+    def _setup_styles(self) -> None:
+        self.setStyleSheet(
+            """
+            QWidget {
+                background: #1e1e1e;
+                color: #eaeaea;
+            }
+            QFrame#DropZone {
+                background: #232323;
+                border: 2px dashed #3a3a3a;
+                border-radius: 10px;
+            }
+            QFrame#DropZone:hover, QFrame#DropZone[dragActive="true"] {
+                border-color: #3daee9;
+            }
+            QTableWidget {
+                background: #232323;
+                alternate-background-color: #1b1b1b;
+                color: #eaeaea;
+                gridline-color: #3a3a3a;
+                selection-background-color: #3daee9;
+                selection-color: #0b0b0b;
+            }
+            QTableWidget::item {
+                color: #eaeaea;
+            }
             QHeaderView::section {
-                background: #0f172a;
-                color: #ffffff;
-                padding: 6px;
+                background: #2a2a2a;
+                color: #eaeaea;
+                padding: 8px;
                 border: 0px;
             }
-            QPlainTextEdit { background: #ffffff; color: #0f172a; border: 1px solid #e5e7eb; }
-        """)
+            QPlainTextEdit {
+                background: #1b1b1b;
+                color: #eaeaea;
+                border: 1px solid #3a3a3a;
+                selection-background-color: #3daee9;
+                selection-color: #0b0b0b;
+            }
+            QPushButton {
+                background: #2a2a2a;
+                color: #eaeaea;
+                border: 1px solid #3a3a3a;
+                border-radius: 6px;
+                padding: 8px 12px;
+            }
+            QPushButton:hover {
+                border-color: #3daee9;
+            }
+            """
+        )
 
     def _build_ui(self) -> None:
         container = QWidget()
@@ -117,9 +146,20 @@ class MainWindow(QMainWindow):
         self.drop_area = DropArea(self._set_input_path)
         root.addWidget(self.drop_area)
 
+        load_row = QHBoxLayout()
+        self.btn_load_file = QPushButton("Carica file…")
+        self.btn_load_folder = QPushButton("Carica cartella…")
+        load_row.addWidget(self.btn_load_file)
+        load_row.addWidget(self.btn_load_folder)
+        load_row.addStretch(1)
+        root.addLayout(load_row)
+
         self.table = QTableWidget(0, 6)
         self.table.setAlternatingRowColors(True)
         self.table.setHorizontalHeaderLabels(["Originale", "Tipo", "Stato", "Problemi", "Nuovo Nome", "Azioni"])
+        table_font = QFont(self.table.font())
+        table_font.setPointSize(max(table_font.pointSize(), 10))
+        self.table.setFont(table_font)
         root.addWidget(self.table)
 
         self.details = QPlainTextEdit()
@@ -148,6 +188,8 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(container)
 
+        self.btn_load_file.clicked.connect(self.choose_file)
+        self.btn_load_folder.clicked.connect(self.choose_folder)
         self.btn_analyze.clicked.connect(self.run_analyze)
         self.btn_sanitize.clicked.connect(self.run_sanitize)
         self.btn_open.clicked.connect(self.open_output)
@@ -155,28 +197,41 @@ class MainWindow(QMainWindow):
         self.btn_settings.clicked.connect(self.show_settings)
         self.btn_reset.clicked.connect(self.reset)
 
+    def choose_file(self) -> None:
+        selected_file, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleziona file di input",
+            str(self.input_path.parent) if self.input_path else "",
+            "Documenti supportati (*.pdf *.zip);;Tutti i file (*)",
+        )
+        if selected_file:
+            self._set_input_path(Path(selected_file))
+
+    def choose_folder(self) -> None:
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            "Seleziona cartella di input",
+            str(self.input_path) if self.input_path and self.input_path.is_dir() else "",
+        )
+        if selected:
+            self._set_input_path(Path(selected))
+
     def _set_input_path(self, path: Path) -> None:
         if not path.exists():
             self._append_log(f"Input non valido: {path}")
             return
         self.input_path = path
+        self.settings.setValue("last_input", str(path))
         self._append_log(f"Input selezionato: {path}")
 
     def _ensure_input(self) -> bool:
         if self.input_path:
             return True
-        selected = QFileDialog.getExistingDirectory(self, "Seleziona cartella di input")
-        if selected:
-            self.input_path = Path(selected)
-            self.settings.setValue("last_input", str(self.input_path))
+        self.choose_folder()
+        if self.input_path:
             return True
-
-        selected_file, _ = QFileDialog.getOpenFileName(self, "Seleziona file di input")
-        if not selected_file:
-            return False
-        self.input_path = Path(selected_file)
-        self.settings.setValue("last_input", str(self.input_path))
-        return True
+        self.choose_file()
+        return self.input_path is not None
 
     def run_analyze(self) -> None:
         if not self._ensure_input():
@@ -192,8 +247,6 @@ class MainWindow(QMainWindow):
         output, summary = sanitize(self.input_path, self.profile)
         self.last_output = output
         self.last_summary = summary
-        if self.input_path is not None:
-            self.settings.setValue("last_input", str(self.input_path))
         if output is not None:
             self.settings.setValue("last_output", str(output))
         self._populate_table(summary)
@@ -210,12 +263,6 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, 0, QTableWidgetItem(result.source.name))
             self.table.setItem(row, 1, QTableWidgetItem(result.file_type))
             state_item = QTableWidgetItem(result.status.upper())
-            if result.status == "ok":
-                state_item.setBackground(QColor("#bbf7d0"))
-            elif result.status == "warning":
-                state_item.setBackground(QColor("#fef08a"))
-            else:
-                state_item.setBackground(QColor("#fecaca"))
             self.table.setItem(row, 2, state_item)
             self.table.setItem(row, 3, QTableWidgetItem(issues_text))
             self.table.setItem(row, 4, QTableWidgetItem(result.suggested_name or ""))
