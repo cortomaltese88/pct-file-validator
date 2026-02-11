@@ -9,14 +9,17 @@ from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QColor, QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
+    QRadioButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -30,35 +33,97 @@ from core.sanitizer import analyze, sanitize
 PROBLEM_HELP = {
     "ext_warning": {
         "title": "Formato da verificare",
-        "description": "Il formato è ammesso con cautela nel profilo corrente.",
-        "fix": "Preferire PDF/P7M o formati esplicitamente ammessi.",
+        "description": "Il formato è ammesso con cautela nel profilo corrente: verificare compatibilità col deposito.",
+        "fix": "Quando possibile convertire in PDF/P7M e mantenere naming conservativo.",
     },
     "ext_forbidden": {
         "title": "Formato non ammesso",
-        "description": "Il file usa un'estensione non prevista per il deposito.",
-        "fix": "Convertire il documento in un formato ammesso (es. PDF).",
+        "description": "L'estensione non rientra nei formati previsti dal profilo selezionato.",
+        "fix": "Convertire il documento in un formato ammesso e rieseguire analisi.",
     },
     "filename_normalize": {
         "title": "Nome file non conforme",
-        "description": "Nome con caratteri/spazi non conservativi per PCT/PDUA.",
-        "fix": "Usare solo caratteri alfanumerici, -, _, . senza accenti.",
+        "description": "Il nome contiene caratteri o pattern rischiosi per i sistemi PCT/PDUA.",
+        "fix": "Usare solo lettere/numeri, underscore e trattino, senza spazi o accenti.",
     },
     "zip_nested": {
         "title": "ZIP non flat",
-        "description": "Archivio con cartelle interne annidate.",
-        "fix": "Estrarre e ricreare ZIP con file tutti in radice.",
+        "description": "L'archivio contiene cartelle annidate e non è in formato flat.",
+        "fix": "Ricreare ZIP con file tutti in radice (senza sottocartelle).",
     },
     "zip_ext_forbidden": {
         "title": "File vietati nello ZIP",
-        "description": "Uno o più file interni hanno estensione non ammessa.",
-        "fix": "Rimuovere i file vietati e ricomprimere.",
+        "description": "Sono presenti file interni con estensioni non accettate.",
+        "fix": "Rimuovere i file non ammessi e ricostruire l'archivio.",
     },
     "zip_mixed_pades": {
         "title": "Mix firmati/non firmati",
-        "description": "Nello stesso ZIP ci sono PDF firmati e non firmati.",
-        "fix": "Separare i documenti firmati da quelli non firmati.",
+        "description": "Nello stesso ZIP risultano PDF firmati e non firmati.",
+        "fix": "Separare i firmati dai non firmati in archivi distinti.",
     },
 }
+
+
+class SettingsDialog(QDialog):
+    def __init__(self, parent: QWidget, output_mode: str, custom_output_dir: str):
+        super().__init__(parent)
+        self.setWindowTitle("Impostazioni output")
+        self.resize(560, 220)
+
+        root = QVBoxLayout(self)
+
+        self.rb_sibling = QRadioButton("Output accanto all'input (default)")
+        self.rb_custom = QRadioButton("Output in cartella personalizzata")
+        self.rb_sibling.setChecked(output_mode != "custom")
+        self.rb_custom.setChecked(output_mode == "custom")
+
+        root.addWidget(self.rb_sibling)
+        root.addWidget(self.rb_custom)
+
+        custom_row = QHBoxLayout()
+        self.edit_custom = QLineEdit(custom_output_dir)
+        self.edit_custom.setPlaceholderText("Seleziona cartella output personalizzata")
+        self.btn_browse = QPushButton("Sfoglia…")
+        custom_row.addWidget(self.edit_custom)
+        custom_row.addWidget(self.btn_browse)
+        root.addLayout(custom_row)
+
+        self.note = QLabel(
+            "Modalità sibling: <dirname(input)>/_PCT_READY_YYYYMMDD_HHMMSS/\n"
+            "Modalità custom: <custom_output_dir>/<basename(input)>_PCT_READY_YYYYMMDD_HHMMSS/"
+        )
+        self.note.setStyleSheet("QLabel { color: #9aa4b2; }")
+        root.addWidget(self.note)
+
+        actions = QHBoxLayout()
+        actions.addStretch(1)
+        self.btn_cancel = QPushButton("Annulla")
+        self.btn_save = QPushButton("Salva")
+        self.btn_save.setObjectName("PrimaryButton")
+        actions.addWidget(self.btn_cancel)
+        actions.addWidget(self.btn_save)
+        root.addLayout(actions)
+
+        self.btn_browse.clicked.connect(self._browse_dir)
+        self.btn_cancel.clicked.connect(self.reject)
+        self.btn_save.clicked.connect(self.accept)
+
+        self._update_enabled_state()
+        self.rb_sibling.toggled.connect(self._update_enabled_state)
+
+    def _browse_dir(self) -> None:
+        selected = QFileDialog.getExistingDirectory(self, "Seleziona cartella output")
+        if selected:
+            self.edit_custom.setText(selected)
+
+    def _update_enabled_state(self) -> None:
+        enabled = self.rb_custom.isChecked()
+        self.edit_custom.setEnabled(enabled)
+        self.btn_browse.setEnabled(enabled)
+
+    def values(self) -> tuple[str, str]:
+        mode = "custom" if self.rb_custom.isChecked() else "sibling"
+        return mode, self.edit_custom.text().strip()
 
 
 class DropArea(QFrame):
@@ -69,13 +134,13 @@ class DropArea(QFrame):
         self.setAcceptDrops(True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 22, 16, 22)
-        layout.setSpacing(8)
+        layout.setContentsMargins(20, 24, 20, 24)
+        layout.setSpacing(10)
 
         icon = QLabel("📂")
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_font = QFont(icon.font())
-        icon_font.setPointSize(28)
+        icon_font.setPointSize(30)
         icon.setFont(icon_font)
 
         title = QLabel("Trascina qui file/cartella da analizzare")
@@ -87,6 +152,7 @@ class DropArea(QFrame):
 
         subtitle = QLabel("Oppure usa i pulsanti sottostanti")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle.setStyleSheet("QLabel { color: #9aa4b2; }")
 
         layout.addWidget(icon)
         layout.addWidget(title)
@@ -129,6 +195,9 @@ class MainWindow(QMainWindow):
         self._temp_input_dir: Path | None = None
 
         self.settings = QSettings("GD LEX", "PCT-PDUA-Validator")
+        self.output_mode = self.settings.value("output_mode", "sibling")
+        self.custom_output_dir = self.settings.value("custom_output_dir", "")
+
         self.config = load_config()
         self.profile = resolve_profile(self.config, "pdua_safe")
 
@@ -147,7 +216,7 @@ class MainWindow(QMainWindow):
             QFrame#DropZone {
               background: #232323;
               border: 2px dashed #3a3a3a;
-              border-radius: 10px;
+              border-radius: 12px;
             }
             QFrame#DropZone:hover, QFrame#DropZone[dragActive="true"] {
               border-color: #3daee9;
@@ -159,6 +228,9 @@ class MainWindow(QMainWindow):
               color: #eaeaea;
               selection-background-color: #3daee9;
               selection-color: #0b0b0b;
+            }
+            QTableWidget::item {
+              padding: 4px;
             }
             QTableWidget::item:hover {
               background: #303030;
@@ -179,7 +251,7 @@ class MainWindow(QMainWindow):
             }
             QPushButton {
               border-radius: 6px;
-              padding: 8px;
+              padding: 8px 12px;
               background: #2a2a2a;
               color: #eaeaea;
               border: 1px solid #3a3a3a;
@@ -208,6 +280,7 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         container = QWidget()
         root = QVBoxLayout(container)
+        root.setSpacing(10)
 
         self.drop_area = DropArea(self._set_input_paths)
         root.addWidget(self.drop_area)
@@ -352,17 +425,21 @@ class MainWindow(QMainWindow):
         self._populate_table(refreshed)
         self._append_log(f"Correzione completata: {output}")
 
-    def _status_badge(self, status: str) -> tuple[str, QColor]:
+    def _status_badge(self, status: str) -> tuple[str, QColor, QColor]:
         mapping = {
-            "ok": ("🟢 OK", QColor("#2f6f44")),
-            "warning": ("🟠 WARNING", QColor("#5e4b1f")),
-            "error": ("🔴 ERROR", QColor("#5f2525")),
+            "ok": (" OK ", QColor("#214b30"), QColor("#95e1b0")),
+            "warning": (" WARNING ", QColor("#5a4618"), QColor("#fdbd3b")),
+            "error": (" ERROR ", QColor("#632727"), QColor("#ff8f8f")),
         }
-        return mapping.get(status, (status.upper(), QColor("#2a2a2a")))
+        label, bg, fg = mapping.get(status, (status.upper(), QColor("#2a2a2a"), QColor("#eaeaea")))
+        return label, bg, fg
 
     def _tooltip_for_issues(self, issues: list) -> str:
         if not issues:
-            return "<b>Nessun problema rilevato</b>"
+            return (
+                "<b>Problemi:</b> nessuno.<br>"
+                "<i>Operativo:</i> il file è pronto alla fase successiva senza interventi specifici."
+            )
         chunks = []
         for issue in issues:
             entry = PROBLEM_HELP.get(
@@ -370,7 +447,7 @@ class MainWindow(QMainWindow):
                 {
                     "title": issue.code,
                     "description": issue.message,
-                    "fix": "Valutare intervento manuale.",
+                    "fix": "Valutare intervento manuale prima del deposito.",
                 },
             )
             chunks.append(
@@ -382,11 +459,20 @@ class MainWindow(QMainWindow):
 
     def _status_tooltip(self, status: str) -> str:
         info = {
-            "ok": "Documento conforme o non bloccante.",
-            "warning": "Documento con aspetti da controllare prima del deposito.",
-            "error": "Documento non conforme o potenzialmente non depositabile.",
+            "ok": "Stato OK: non sono stati rilevati blocchi di deposito.",
+            "warning": "Stato WARNING: rilevate criticità non bloccanti ma da verificare operativamente.",
+            "error": "Stato ERROR: presenza di errori che possono impedire il deposito.",
         }
         return info.get(status, "Stato non disponibile")
+
+    def _correction_tooltip(self, outcome: str) -> str:
+        mapping = {
+            "N/D": "Correzione non ancora eseguita: avviare prima il comando di correzione.",
+            "✔ Corretto": "Correzione applicata con successo nella copia di output.",
+            "⚠ Parzialmente corretto": "Correzione parziale: restano elementi da controllo manuale.",
+            "✖ Non correggibile": "Correzione automatica non possibile: necessario intervento manuale.",
+        }
+        return mapping.get(outcome, "Esito non disponibile")
 
     def _populate_table(self, summary: AnalysisSummary) -> None:
         self.table.setRowCount(0)
@@ -399,9 +485,11 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, 0, QTableWidgetItem(result.source.name))
             self.table.setItem(row, 1, QTableWidgetItem(result.file_type))
 
-            badge, tint = self._status_badge(result.status)
+            badge, bg, fg = self._status_badge(result.status)
             state_item = QTableWidgetItem(badge)
-            state_item.setBackground(tint)
+            state_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            state_item.setBackground(bg)
+            state_item.setForeground(fg)
             state_item.setToolTip(self._status_tooltip(result.status))
             self.table.setItem(row, 2, state_item)
 
@@ -409,10 +497,12 @@ class MainWindow(QMainWindow):
             self.table.item(row, 3).setToolTip(self._tooltip_for_issues(result.issues))
 
             self.table.setItem(row, 4, QTableWidgetItem(result.suggested_name or ""))
-            self.table.item(row, 4).setToolTip(result.suggested_name or "")
+            self.table.item(row, 4).setToolTip(result.suggested_name or "Nome non suggerito")
 
-            correction = result.correction_outcome or ""
-            self.table.setItem(row, 5, QTableWidgetItem(correction))
+            correction = result.correction_outcome or "N/D"
+            correction_item = QTableWidgetItem(correction)
+            correction_item.setToolTip(self._correction_tooltip(correction))
+            self.table.setItem(row, 5, correction_item)
 
             actions = " | ".join(result.correction_actions) if result.correction_actions else "auto"
             self.table.setItem(row, 6, QTableWidgetItem(actions))
@@ -443,7 +533,16 @@ class MainWindow(QMainWindow):
         self._append_log("Report copiato negli appunti.")
 
     def show_settings(self) -> None:
-        QMessageBox.information(self, "Impostazioni", "MVP: profilo fisso pdua_safe. CLI supporta --profile.")
+        dialog = SettingsDialog(self, self.output_mode, self.custom_output_dir)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            mode, custom_dir = dialog.values()
+            self.output_mode = mode
+            self.custom_output_dir = custom_dir
+            self.settings.setValue("output_mode", self.output_mode)
+            self.settings.setValue("custom_output_dir", self.custom_output_dir)
+            self._append_log(
+                f"Impostazioni salvate: output_mode={self.output_mode}, custom_output_dir={self.custom_output_dir or '-'}"
+            )
 
     def reset(self) -> None:
         self.input_path = None
@@ -471,6 +570,9 @@ class MainWindow(QMainWindow):
         if geometry is not None:
             self.restoreGeometry(geometry)
 
+        self.output_mode = self.settings.value("output_mode", "sibling")
+        self.custom_output_dir = self.settings.value("custom_output_dir", "")
+
         saved_input = self.settings.value("last_input")
         if saved_input:
             candidate = Path(saved_input)
@@ -490,6 +592,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):  # noqa: N802
         self.settings.setValue("window_geometry", self.saveGeometry())
+        self.settings.setValue("output_mode", self.output_mode)
+        self.settings.setValue("custom_output_dir", self.custom_output_dir)
         if self.input_path is not None:
             self.settings.setValue("last_input", str(self.input_path))
         if self.last_output is not None:
