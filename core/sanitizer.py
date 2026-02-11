@@ -37,7 +37,8 @@ def _is_ignored_path(path: Path) -> bool:
 
 def iter_input_files(input_root: Path) -> list[Path]:
     if input_root.is_file():
-        return [] if _is_ignored_path(input_root) else [input_root]
+        # se il file è selezionato esplicitamente dall'utente lo analizziamo comunque
+        return [input_root]
     return [p for p in sorted(input_root.rglob("*")) if p.is_file() and not _is_ignored_path(p)]
 
 
