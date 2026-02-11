@@ -19,6 +19,8 @@ class FileAnalysis:
     issues: list[Issue] = field(default_factory=list)
     suggested_name: str | None = None
     sha256: str | None = None
+    correction_outcome: str = ""
+    correction_actions: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -40,6 +42,8 @@ class AnalysisSummary:
                     "issues": [issue.__dict__ for issue in item.issues],
                     "suggested_name": item.suggested_name,
                     "sha256": item.sha256,
+                    "correction_outcome": item.correction_outcome,
+                    "correction_actions": item.correction_actions,
                 }
             )
         return payload
