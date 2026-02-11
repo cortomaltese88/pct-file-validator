@@ -62,12 +62,48 @@ class MainWindow(QMainWindow):
         self._build_ui()
 
     def _setup_palette(self) -> None:
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, QColor("#f1f5f9"))
-        palette.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
-        palette.setColor(QPalette.ColorRole.Button, QColor("#0f172a"))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor("#ffffff"))
+        palette = QPalette()
+
+        # GD LEX "light" sobrio
+        window = QColor("#f1f5f9")
+        base = QColor("#ffffff")
+        alt_base = QColor("#f8fafc")
+        text = QColor("#0f172a")
+        disabled_text = QColor("#64748b")
+
+        button = QColor("#0f172a")
+        button_text = QColor("#ffffff")
+
+        highlight = QColor("#2563eb")
+        highlighted_text = QColor("#ffffff")
+
+        palette.setColor(QPalette.ColorRole.Window, window)
+        palette.setColor(QPalette.ColorRole.WindowText, text)
+        palette.setColor(QPalette.ColorRole.Base, base)
+        palette.setColor(QPalette.ColorRole.AlternateBase, alt_base)
+        palette.setColor(QPalette.ColorRole.Text, text)
+        palette.setColor(QPalette.ColorRole.Button, button)
+        palette.setColor(QPalette.ColorRole.ButtonText, button_text)
+        palette.setColor(QPalette.ColorRole.Highlight, highlight)
+        palette.setColor(QPalette.ColorRole.HighlightedText, highlighted_text)
+
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, disabled_text)
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, disabled_text)
+
         self.setPalette(palette)
+
+        # “cintura e bretelle”: assicura contrasto in tabella e editor anche su tema/override strani
+        self.setStyleSheet("""
+            QTableWidget { background: #ffffff; color: #0f172a; gridline-color: #e5e7eb; }
+            QTableWidget::item { color: #0f172a; }
+            QHeaderView::section {
+                background: #0f172a;
+                color: #ffffff;
+                padding: 6px;
+                border: 0px;
+            }
+            QPlainTextEdit { background: #ffffff; color: #0f172a; border: 1px solid #e5e7eb; }
+        """)
 
     def _build_ui(self) -> None:
         container = QWidget()
@@ -77,6 +113,7 @@ class MainWindow(QMainWindow):
         root.addWidget(self.drop_area)
 
         self.table = QTableWidget(0, 6)
+        self.table.setAlternatingRowColors(True)
         self.table.setHorizontalHeaderLabels(["Originale", "Tipo", "Stato", "Problemi", "Nuovo Nome", "Azioni"])
         root.addWidget(self.table)
 

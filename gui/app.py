@@ -9,6 +9,7 @@ from gui.main_window import MainWindow
 
 def main() -> int:
     app = QApplication(sys.argv)
+    app.setStyle("Fusion")  # evita effetti collaterali dei temi KDE/Qt
     app.setApplicationName("GD LEX – Verifica Deposito PCT/PDUA")
     window = MainWindow()
     window.show()
