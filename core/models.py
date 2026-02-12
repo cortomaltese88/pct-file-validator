@@ -27,6 +27,7 @@ class FileAnalysis:
 @dataclass(slots=True)
 class AnalysisSummary:
     files: list[FileAnalysis]
+    excluded_paths: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def has_errors(self) -> bool:

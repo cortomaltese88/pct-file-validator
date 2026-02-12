@@ -35,18 +35,29 @@ def _is_ignored_path(path: Path) -> bool:
     return False
 
 
-def iter_input_files(input_root: Path) -> list[Path]:
+def iter_input_files(input_root: Path) -> tuple[list[Path], list[tuple[str, str]]]:
     if input_root.is_file():
         # se il file è selezionato esplicitamente dall'utente lo analizziamo comunque
-        return [input_root]
-    return [p for p in sorted(input_root.rglob("*")) if p.is_file() and not _is_ignored_path(p)]
+        return [input_root], []
+
+    files: list[Path] = []
+    excluded: list[tuple[str, str]] = []
+    for path in sorted(input_root.rglob("*")):
+        if not path.is_file():
+            continue
+        if _is_ignored_path(path):
+            excluded.append((str(path), "technical_or_generated"))
+            continue
+        files.append(path)
+    return files, excluded
 
 
 def analyze(input_root: Path, profile: dict) -> AnalysisSummary:
-    files = [validate_path(path, profile) for path in iter_input_files(input_root)]
+    paths, excluded = iter_input_files(input_root)
+    files = [validate_path(path, profile) for path in paths]
     for item in files:
         item.correction_outcome = OUTCOME_NOT_RUN
-    return AnalysisSummary(files=files)
+    return AnalysisSummary(files=files, excluded_paths=excluded)
 
 
 def _safe_target_name(base_name: str, used: set[str]) -> str:

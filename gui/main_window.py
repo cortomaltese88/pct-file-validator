@@ -416,6 +416,8 @@ class MainWindow(QMainWindow):
         self._refresh_model()
         self.btn_sanitize.setEnabled(True)
         self._append_log("Analisi completata")
+        for path, reason in summary.excluded_paths:
+            self._append_log(f"Escluso da analisi ({reason}): {path}")
 
     def run_sanitize(self) -> None:
         if not self._ensure_input():
@@ -509,7 +511,10 @@ class MainWindow(QMainWindow):
             ]
             items[2].setToolTip(f"Stato finale: {status_text}. Significato deposito: verifica i warning/error prima invio.")
             items[3].setToolTip(self._issue_tooltip(row.issues))
-            items[5].setToolTip("PARZIALE: output creato con warning residui. FALLITA: correzione non completata.")
+            items[5].setToolTip(
+                "CORRETTA: problemi risolti. PARZIALE: output creato ma restano warning/error. "
+                "NON ESEGUITA: non è stata lanciata correzione. IMPOSSIBILE/ERRORE: intervento manuale necessario."
+            )
             items[6].setToolTip(row.output_path)
             self.model.appendRow(items)
 
