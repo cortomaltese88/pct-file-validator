@@ -39,11 +39,28 @@ jobs:
         run: |
           choco install innosetup -y
 
+
+      - name: Check and generate installer icon
+        shell: pwsh
+        run: |
+          Write-Host ">> Checking paths"
+          Write-Host "PWD: $(Get-Location)"
+          if (Test-Path 'dist-installer') { dir dist-installer -Recurse } else { Write-Host 'dist-installer not found yet' }
+          dir packaging/windows -Recurse
+          if (!(Test-Path 'dist-installer\tmp\gdlex-pct-validator.ico')) {
+            Write-Host "Icon missing, generating placeholder..."
+            python -c "from PIL import Image, ImageDraw; import os; os.makedirs('dist-installer/tmp', exist_ok=True); img=Image.new('RGBA',(256,256),(255,255,255,0)); d=ImageDraw.Draw(img); d.rectangle([16,16,240,240], outline='black', width=6); img.save('dist-installer/tmp/gdlex-pct-validator.ico'); print('Placeholder .ico generated')"
+          }
+          if (!(Test-Path 'dist\GDLEX-PCT-Validator')) { throw 'Missing PyInstaller output directory: dist\GDLEX-PCT-Validator' }
+          if (!(Test-Path 'dist-installer\tmp\gdlex-pct-validator.ico')) { throw 'Missing installer icon: dist-installer\tmp\gdlex-pct-validator.ico' }
+          Write-Host "Icon ready: $(Resolve-Path 'dist-installer\tmp\gdlex-pct-validator.ico')"
+
       - name: Build Windows installer (.exe)
         shell: pwsh
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          & $iscc "/DMyAppVersion=$($env:GITHUB_REF_NAME.TrimStart('v'))" "packaging/windows/installer.iss"
+          $iss = (Resolve-Path "packaging/windows/installer.iss").Path
+          & $iscc "/DMyAppVersion=$($env:GITHUB_REF_NAME.TrimStart('v'))" $iss
 
       - name: Upload installer to release
         uses: softprops/action-gh-release@v2
