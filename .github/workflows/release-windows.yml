@@ -39,7 +39,6 @@ jobs:
         run: |
           choco install innosetup -y
 
-
       - name: Check and generate installer icon
         shell: pwsh
         run: |
@@ -47,20 +46,28 @@ jobs:
           Write-Host "PWD: $(Get-Location)"
           if (Test-Path 'dist-installer') { dir dist-installer -Recurse } else { Write-Host 'dist-installer not found yet' }
           dir packaging/windows -Recurse
-          if (!(Test-Path 'dist-installer\tmp\gdlex-pct-validator.ico')) {
-            Write-Host "Icon missing, generating placeholder..."
-            python -c "from PIL import Image, ImageDraw; import os; os.makedirs('dist-installer/tmp', exist_ok=True); img=Image.new('RGBA',(256,256),(255,255,255,0)); d=ImageDraw.Draw(img); d.rectangle([16,16,240,240], outline='black', width=6); img.save('dist-installer/tmp/gdlex-pct-validator.ico'); print('Placeholder .ico generated')"
+
+          $iconAbs = Join-Path (Resolve-Path '.').Path 'packaging\windows\assets\app.ico'
+          $iconDir = Split-Path -Parent $iconAbs
+
+          if (!(Test-Path $iconAbs)) {
+            Write-Host "Stable icon missing, generating placeholder..."
+            python -c "from PIL import Image, ImageDraw; import os; os.makedirs('packaging/windows/assets', exist_ok=True); img=Image.new('RGBA',(256,256),(255,255,255,0)); d=ImageDraw.Draw(img); d.rectangle([16,16,240,240], outline='black', width=6); img.save('packaging/windows/assets/app.ico'); print('Placeholder .ico generated')"
           }
+
+          if (!(Test-Path $iconAbs)) { throw "Missing installer icon: $iconAbs" }
+          Write-Host "Installer icon absolute path: $iconAbs"
+          dir $iconDir
+
           if (!(Test-Path 'dist\GDLEX-PCT-Validator')) { throw 'Missing PyInstaller output directory: dist\GDLEX-PCT-Validator' }
-          if (!(Test-Path 'dist-installer\tmp\gdlex-pct-validator.ico')) { throw 'Missing installer icon: dist-installer\tmp\gdlex-pct-validator.ico' }
-          Write-Host "Icon ready: $(Resolve-Path 'dist-installer\tmp\gdlex-pct-validator.ico')"
 
       - name: Build Windows installer (.exe)
         shell: pwsh
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           $iss = (Resolve-Path "packaging/windows/installer.iss").Path
-          & $iscc "/DMyAppVersion=$($env:GITHUB_REF_NAME.TrimStart('v'))" $iss
+          $iconAbs = (Resolve-Path "packaging/windows/assets/app.ico").Path
+          & $iscc "/DMyAppVersion=$($env:GITHUB_REF_NAME.TrimStart('v'))" "/DMyAppIcon=$iconAbs" $iss
 
       - name: Upload installer to release
         uses: softprops/action-gh-release@v2
