@@ -162,3 +162,11 @@ Con il workflow CI (`.github/workflows/release-deb.yml`):
 - Stampa report e Export PDF 📄.
 - Smart Rename configurabile con mitigazione path lunghi/collisioni.
 - Riparazione ZIP (flatten + normalizzazione + rebuild).
+
+
+### Windows installer (per-user)
+
+- L'installer Windows usa installazione per-user in `%LOCALAPPDATA%\GDLEX-PCT-Validator` (non richiede admin di default).
+- È possibile forzare installazione elevata via opzioni Inno Setup da command-line (`PrivilegesRequiredOverridesAllowed=commandline`).
+- Nota tecnica: su Windows il drag&drop verso app elevate può essere bloccato da UIPI. L'app viene eseguita `asInvoker` per mantenere drag&drop compatibile con Explorer.
+- SmartScreen/AV possono mostrare avvisi su eseguibili non firmati: è comportamento atteso di Windows per file nuovi/non reputati.

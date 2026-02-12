@@ -15,8 +15,9 @@ def test_classify_filename_pagopa():
     assert classify_filename("ricevuta_pagopa_123.pdf") == "Ricevuta_PagoPA"
 
 
-def test_pec_mps_not_generic():
-    assert classify_filename("pec_mps_notifica.msg") == "PEC_MPS"
+def test_classify_filename_pec_keeps_meaningful_tokens():
+    out = classify_filename("Indirizzo pec IPSO EDILE - Inipec.pdf")
+    assert out == "PEC_INDIRIZZO_IPSO_EDILE_INIPEC"
 
 
 def test_ensure_unique_sequence():
@@ -46,3 +47,11 @@ def test_smart_rename_pagopa_uuid_like_human_name():
     assert candidate == "Ricevuta_PagoPA.pdf"
     assert "uuid_or_random_pattern" in reasons
 
+
+def test_smart_rename_distinguishes_pec_subjects():
+    opts = {"enabled": True, "max_filename_len": 140, "max_output_path_len": 200}
+    a, _ = smart_rename("Indirizzo pec IPSO EDILE - Inipec.pdf", ".pdf", opts, {"output_dir": Path("/tmp")})
+    b, _ = smart_rename("Indirizzo pec UNICREDIT SPA - Inipec.pdf", ".pdf", opts, {"output_dir": Path("/tmp")})
+    assert a.startswith("PEC_INDIRIZZO_IPSO_EDILE_INIPEC")
+    assert b.startswith("PEC_INDIRIZZO_UNICREDIT_INIPEC")
+    assert a != b

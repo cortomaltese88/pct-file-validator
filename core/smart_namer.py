@@ -14,11 +14,11 @@ def detect_uuid_like(name: str) -> bool:
     return bool(UUID_RE.search(stem) or LONG_RANDOM_RE.search(stem))
 
 
-def _extract_pec_identifier(stem: str) -> str | None:
+def _extract_meaningful_tokens(stem: str) -> list[str]:
     tokens = [t for t in re.split(r"[^A-Za-z0-9]+", stem) if t]
-    blacklist = {"pec", "email", "posta", "elettronica", "signed", "firmato", "pdf", "msg", "eml"}
-    candidates = [t for t in tokens if t.lower() not in blacklist and len(t) >= 2]
-    return candidates[0].upper() if candidates else None
+    stop = {"pec", "email", "posta", "elettronica", "signed", "firmato", "pdf", "msg", "eml", "spa"}
+    out = [t.upper() for t in tokens if t.lower() not in stop and len(t) >= 2]
+    return out
 
 
 def classify_filename(name: str) -> str | None:
@@ -37,10 +37,10 @@ def classify_filename(name: str) -> str | None:
     if "attestazione" in lower and "conform" in lower:
         return "Attestazione_Conformita"
     if "pec" in lower or "email" in lower or "posta elettronica" in lower:
-        identifier = _extract_pec_identifier(stem)
-        if identifier:
-            return f"PEC_{identifier}"
-        return "PEC_01"
+        tokens = _extract_meaningful_tokens(stem)
+        if tokens:
+            return f"PEC_{'_'.join(tokens)}"
+        return "PEC"
     if "notifica" in lower or "ufficiale giudiziario" in lower:
         return "Notifica_Ufficiale_Giudiziario"
     return None
@@ -126,6 +126,5 @@ def smart_rename(name: str, ext: str, opts: dict, context: dict | None = None) -
             candidate = sanitize_filename(candidate, max_len=max(20, max_filename_len - 10))
         reasons.append("path_too_long_mitigated")
 
-    # safety net against duplicated suffixes
     candidate = candidate.replace("_signed_signed", "_signed").replace("_firmato_firmato", "_firmato")
     return candidate, reasons

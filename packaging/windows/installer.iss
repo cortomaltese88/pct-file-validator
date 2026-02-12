@@ -13,7 +13,7 @@ AppId={{B4EAF5A4-7B4F-4A6C-8D11-5F07F7D34986}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={pf}\GDLEX-PCT-Validator
+DefaultDirName={localappdata}\GDLEX-PCT-Validator
 DefaultGroupName=GD LEX - PCT Validator
 DisableProgramGroupPage=yes
 OutputDir={#SourcePath}\..\..\dist-installer
@@ -24,6 +24,8 @@ WizardStyle=modern
 SetupIconFile={#MyAppIcon}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ArchitecturesInstallIn64BitMode=x64
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=commandline
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

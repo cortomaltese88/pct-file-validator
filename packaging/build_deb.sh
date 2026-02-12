@@ -31,18 +31,23 @@ VENV_DIR="$APP_PREFIX/venv"
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR" "$DIST_DIR"
 
+python3 "$ROOT_DIR/packaging/generate_icons.py" || true
+
 install -d -m 755 "$APP_SRC"
 rsync -a --exclude '.git' --exclude '.venv' --exclude '__pycache__' --exclude 'dist' "$ROOT_DIR/" "$APP_SRC/"
 
 install -Dm755 "$ROOT_DIR/packaging/usr-bin/gdlex-gui" "$STAGE_DIR/usr/bin/gdlex-gui"
 install -Dm644 "$ROOT_DIR/packaging/gdlex-pct-validator.desktop" "$STAGE_DIR/usr/share/applications/gdlex-pct-validator.desktop"
 install -Dm644 "$ROOT_DIR/assets/icons/gdlex-pct-validator.svg" "$STAGE_DIR/usr/share/icons/hicolor/scalable/apps/gdlex-pct-validator.svg"
+if [[ -f "$ROOT_DIR/assets/icons/gdlex-pct-validator-256.png" ]]; then
+  install -Dm644 "$ROOT_DIR/assets/icons/gdlex-pct-validator-256.png" "$STAGE_DIR/usr/share/icons/hicolor/256x256/apps/gdlex-pct-validator.png"
+fi
+if [[ -f "$ROOT_DIR/assets/icon.png" ]]; then
+  install -Dm644 "$ROOT_DIR/assets/icon.png" "$STAGE_DIR/usr/share/icons/hicolor/512x512/apps/gdlex-pct-validator.png"
+fi
 
 if [[ -f "$ROOT_DIR/assets/icons/gdlex-pct-validator-128.png" ]]; then
   install -Dm644 "$ROOT_DIR/assets/icons/gdlex-pct-validator-128.png" "$STAGE_DIR/usr/share/icons/hicolor/128x128/apps/gdlex-pct-validator.png"
-fi
-if [[ -f "$ROOT_DIR/assets/icons/gdlex-pct-validator-256.png" ]]; then
-  install -Dm644 "$ROOT_DIR/assets/icons/gdlex-pct-validator-256.png" "$STAGE_DIR/usr/share/icons/hicolor/256x256/apps/gdlex-pct-validator.png"
 fi
 
 # Permessi coerenti per il payload

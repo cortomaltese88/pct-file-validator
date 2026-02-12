@@ -193,6 +193,15 @@ class SettingsDialog(QDialog):
         )
 
 
+def paths_from_drop_urls(raw_urls: list[str]) -> list[Path]:
+    out = []
+    for raw in raw_urls:
+        if not raw:
+            continue
+        out.append(Path(raw))
+    return out
+
+
 class DropArea(QFrame):
     def __init__(self, on_path_dropped):
         super().__init__()
@@ -239,8 +248,8 @@ class DropArea(QFrame):
         self.setProperty("dragActive", False)
         self.style().unpolish(self)
         self.style().polish(self)
-        paths = [Path(url.toLocalFile()) for url in event.mimeData().urls() if url.toLocalFile()]
-        self.on_path_dropped(paths)
+        raw = [url.toLocalFile() for url in event.mimeData().urls()]
+        self.on_path_dropped(paths_from_drop_urls(raw))
 
 
 class MainWindow(QMainWindow):
