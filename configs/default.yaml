@@ -1,0 +1,19 @@
+{
+  "profiles": {
+    "standard": {
+      "allowed_formats": ["pdf", "p7m", "zip", "rtf", "txt", "xml", "html", "jpg", "jpeg", "eml", "msg"],
+      "warning_formats": ["png", "gif", "tiff", "mp3", "mp4", "wav", "avi", "mov"],
+      "filename": {"max_length": 80}
+    },
+    "pdua_safe": {
+      "allowed_formats": ["pdf", "p7m", "zip", "rtf", "txt", "xml", "html", "jpg", "jpeg", "eml", "msg"],
+      "warning_formats": ["png", "gif", "tiff", "mp3", "mp4", "wav", "avi", "mov"],
+      "filename": {"max_length": 80}
+    },
+    "pduasuper": {
+      "allowed_formats": ["pdf", "p7m", "zip", "rtf", "txt", "xml", "html", "jpg", "jpeg", "eml", "msg"],
+      "warning_formats": ["png", "gif", "tiff", "mp3", "mp4", "wav", "avi", "mov"],
+      "filename": {"max_length": 70}
+    }
+  }
+}
