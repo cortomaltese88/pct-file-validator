@@ -27,6 +27,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           python -m compileall core gui cli
+          pip install pytest
           pytest -q
 
       - name: Build .deb
