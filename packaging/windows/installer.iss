@@ -5,7 +5,7 @@
 #define MyAppPublisher "Studio GD LEX"
 #define MyAppExeName "GDLEX-PCT-Validator.exe"
 #ifndef MyAppIcon
-#define MyAppIcon "dist-installer\\tmp\\gdlex-pct-validator.ico"
+#define MyAppIcon "{#SourcePath}\..\..\dist-installer\tmp\gdlex-pct-validator.ico"
 #endif
 
 [Setup]
@@ -16,7 +16,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={pf}\GDLEX-PCT-Validator
 DefaultGroupName=GD LEX - PCT Validator
 DisableProgramGroupPage=yes
-OutputDir=dist-installer
+OutputDir={#SourcePath}\..\..\dist-installer
 OutputBaseFilename=GDLEX-PCT-Validator-Setup
 Compression=lzma
 SolidCompression=yes
@@ -32,7 +32,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Files]
-Source: "dist\\GDLEX-PCT-Validator\\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+Source: "{#SourcePath}\..\..\dist\GDLEX-PCT-Validator\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\GD LEX - PCT Validator"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"
