@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QColor, QGuiApplication, QPalette
 from PySide6.QtWidgets import QApplication
 
 from gui.main_window import MainWindow
@@ -25,6 +25,7 @@ def _build_dark_palette() -> QPalette:
 
 
 def main() -> int:
+    QGuiApplication.setDesktopFileName("gdlex-pct-validator.desktop")
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     app.setPalette(_build_dark_palette())
