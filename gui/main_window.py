@@ -41,6 +41,7 @@ from core.sanitizer import (
     OUTCOME_OK,
     OUTCOME_PARTIAL,
     analyze,
+    iter_input_files,
     sanitize,
 )
 
@@ -386,6 +387,40 @@ class MainWindow(QMainWindow):
         if selected:
             self._set_input_paths([Path(selected)])
 
+    def _collect_preview_rows(self, selected_paths: list[Path]) -> list[RowState]:
+        allowed_ext = set(self.profile.get("allowed_formats", [])) | set(self.profile.get("warning_formats", []))
+        preview_files: list[Path] = []
+
+        for path in selected_paths:
+            if path.is_file():
+                preview_files.append(path)
+                continue
+            if path.is_dir():
+                files, excluded = iter_input_files(path)
+                for excluded_path, reason in excluded:
+                    self._append_log(f"Escluso in preview ({reason}): {excluded_path}")
+                for fp in files:
+                    ext = fp.suffix.lower().lstrip(".")
+                    if ext in allowed_ext:
+                        preview_files.append(fp)
+
+        rows: list[RowState] = []
+        for fp in preview_files:
+            rows.append(
+                RowState(
+                    source_path=str(fp),
+                    original=fp.name,
+                    file_type=fp.suffix.lower().lstrip(".") or "file",
+                    status="non_analizzato",
+                    issues=[],
+                    new_name=fp.name,
+                    fix_outcome=OUTCOME_NOT_RUN,
+                    output_path="-",
+                    actions=["NON ANALIZZATO"],
+                )
+            )
+        return rows
+
     def _set_input_paths(self, paths: list[Path]) -> None:
         valid = [p for p in paths if p.exists()]
         if not valid:
@@ -404,8 +439,19 @@ class MainWindow(QMainWindow):
                     shutil.copy2(src, tmp / src.name)
             self._temp_input_dir = tmp
             self.input_path = tmp
-        self.settings.setValue("last_input", str(self.input_path))
-        self._append_log(f"Input selezionato: {self.input_path}")
+
+        self.rows = self._collect_preview_rows(valid)
+        self.last_summary = None
+        self.last_output = None
+        self.report_synthetic.clear()
+        self.log.clear()
+        self._refresh_model()
+        selected_txt = str(self.input_path)
+        self.details.setPlainText(f"Input selezionato: {selected_txt}")
+        self.settings.setValue("last_input", selected_txt)
+        self.btn_analyze.setEnabled(True)
+        self.btn_sanitize.setEnabled(False)
+        self._append_log(f"Drop handled: Input selezionato: {selected_txt}")
 
     def _ensure_input(self) -> bool:
         if self.input_path:
@@ -499,7 +545,7 @@ class MainWindow(QMainWindow):
         return outcome
 
     def _status_badge(self, status: str) -> str:
-        return {"ok": "🟢 OK", "warning": "🟠 WARNING", "error": "🔴 ERROR"}.get(status, status.upper())
+        return {"ok": "🟢 OK", "warning": "🟠 WARNING", "error": "🔴 ERROR", "non_analizzato": "⚪ NON ANALIZZATO"}.get(status, status.upper())
 
     def _refresh_model(self) -> None:
         self.model.removeRows(0, self.model.rowCount())
@@ -511,7 +557,7 @@ class MainWindow(QMainWindow):
                 ok += 1
             elif row.status == "warning":
                 warn += 1
-            else:
+            elif row.status == "error":
                 err += 1
 
             if row.fix_outcome in {OUTCOME_FIXED, OUTCOME_OK}:
@@ -603,19 +649,31 @@ class MainWindow(QMainWindow):
         self._append_log("Report copiato negli appunti")
 
 
+    def _print_document(self, doc: QTextDocument, printer: QPrinter) -> None:
+        if hasattr(doc, "print_"):
+            doc.print_(printer)
+        else:
+            doc.print(printer)
+
     def print_report(self) -> None:
         if not self.last_summary:
             QMessageBox.information(self, "Info", "Nessun report disponibile")
             return
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         dialog = QPrintDialog(printer, self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        self._append_log(f"Print dialog accepted: {accepted}")
+        if not accepted:
             self._append_log("Stampa report annullata")
             return
-        doc = QTextDocument()
-        doc.setPlainText(self._full_report_text(technical=True))
-        doc.print(printer)
-        self._append_log("Report tecnico inviato alla stampante")
+        try:
+            doc = QTextDocument()
+            doc.setPlainText(self._full_report_text(technical=True))
+            self._print_document(doc, printer)
+            self._append_log("Stampa report completata")
+        except Exception as exc:  # pragma: no cover
+            self._append_log(f"Stampa report fallita: {exc}")
+            QMessageBox.warning(self, "Errore stampa", f"Stampa non riuscita:\n{exc}")
 
     def export_report_pdf(self) -> None:
         if not self.last_summary:
@@ -627,13 +685,21 @@ class MainWindow(QMainWindow):
             return
         if not target.lower().endswith(".pdf"):
             target += ".pdf"
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-        printer.setOutputFileName(target)
-        doc = QTextDocument()
-        doc.setPlainText(self._full_report_text(technical=True))
-        doc.print(printer)
-        self._append_log(f"Report PDF esportato: {target}")
+        self._append_log(f"Export PDF path: {target}")
+        try:
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(target)
+            doc = QTextDocument()
+            doc.setPlainText(self._full_report_text(technical=True))
+            self._print_document(doc, printer)
+            if not Path(target).exists():
+                raise RuntimeError("file PDF non creato")
+            self._append_log(f"Report PDF esportato con successo: {target}")
+            QMessageBox.information(self, "Export PDF", f"PDF creato correttamente:\n{target}")
+        except Exception as exc:  # pragma: no cover
+            self._append_log(f"Export PDF fallito: {exc}")
+            QMessageBox.warning(self, "Errore export PDF", f"Export PDF non riuscito:\n{exc}")
 
     def show_settings(self) -> None:
         dialog = SettingsDialog(
