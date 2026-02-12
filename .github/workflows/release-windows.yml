@@ -34,6 +34,18 @@ jobs:
         run: |
           ./packaging/windows/build.ps1
 
+
+      - name: Preflight check bundled config
+        shell: pwsh
+        run: |
+          $cfg = "dist\GDLEX-PCT-Validator\_internal\configs\default.yaml"
+          Write-Host "Checking bundled config: $cfg"
+          if (!(Test-Path $cfg)) {
+            if (Test-Path "dist\GDLEX-PCT-Validator") { dir dist\GDLEX-PCT-Validator -Recurse }
+            throw "Missing bundled config: $cfg"
+          }
+          Write-Host "Bundled config found: $(Resolve-Path $cfg)"
+
       - name: Install Inno Setup
         shell: pwsh
         run: |

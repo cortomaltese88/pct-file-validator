@@ -76,6 +76,8 @@ if (-not (Test-Path $stableIcon)) {
   --name "GDLEX-PCT-Validator" `
   --icon "$stableIcon" `
   --collect-all PySide6 `
+  --add-data "configs\default.yaml;configs" `
+  --add-data "configs;configs" `
   gui/app.py
 
 Write-Host "PyInstaller build completed: dist/GDLEX-PCT-Validator/"
