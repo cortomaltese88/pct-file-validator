@@ -7,7 +7,8 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QFont, QFontDatabase, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QDesktopServices, QFont, QFontDatabase, QIcon, QStandardItem, QStandardItemModel, QTextDocument
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -21,7 +22,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
-    QRadioButton,
     QSplitter,
     QSpinBox,
     QTabWidget,
@@ -50,10 +50,25 @@ PROBLEM_HELP = {
         "description": "Il nome contiene spazi/caratteri non ammessi. In deposito può creare problemi o risultare poco leggibile.",
         "fix": "Autofix: rinomina in formato safe (ASCII/underscore).",
     },
+    "filename_invalid_chars": {
+        "title": "Caratteri non validi nel nome",
+        "description": "Il nome include simboli che possono bloccare o sporcare il deposito.",
+        "fix": "Autofix: sostituzione con caratteri safe e underscore.",
+    },
+    "filename_too_long": {
+        "title": "Nome troppo lungo",
+        "description": "Basename eccessivo: possibile errore su OneDrive e percorsi profondi.",
+        "fix": "Autofix: abbreviazione nome con preservazione estensione.",
+    },
     "pades_detected": {
         "title": "Firma PAdES rilevata",
         "description": "PDF firmato rilevato. Non è un errore bloccante.",
         "fix": "Verificare solo coerenza con eventuali documenti non firmati nello stesso ZIP.",
+    },
+    "zip_name": {
+        "title": "Nome interno ZIP non conforme",
+        "description": "Uno o più file nello ZIP hanno naming non conforme.",
+        "fix": "Autofix: rinomina interna safe durante ricostruzione ZIP.",
     },
     "zip_nested": {
         "title": "ZIP con cartelle interne",
@@ -89,7 +104,8 @@ PROBLEM_HELP = {
 
 
 @dataclass(slots=True)
-class RowResult:
+class RowState:
+    source_path: str
     original: str
     file_type: str
     status: str
@@ -107,12 +123,9 @@ class SettingsDialog(QDialog):
         self.resize(620, 260)
 
         root = QVBoxLayout(self)
-        self.rb_sibling = QRadioButton("Output accanto all'input (default)")
-        self.rb_custom = QRadioButton("Scegli output manualmente")
-        self.rb_sibling.setChecked(output_mode != "custom")
-        self.rb_custom.setChecked(output_mode == "custom")
-        root.addWidget(self.rb_sibling)
-        root.addWidget(self.rb_custom)
+        self.chk_sibling = QCheckBox("Output di default accanto all'input")
+        self.chk_sibling.setChecked(output_mode != "custom")
+        root.addWidget(self.chk_sibling)
 
         custom_row = QHBoxLayout()
         self.edit_custom = QLineEdit(custom_output_dir)
@@ -151,14 +164,14 @@ class SettingsDialog(QDialog):
         actions.addWidget(self.btn_save)
         root.addLayout(actions)
 
-        self.rb_sibling.toggled.connect(self._sync_custom_state)
+        self.chk_sibling.toggled.connect(self._sync_custom_state)
         self.btn_browse.clicked.connect(self._browse_dir)
         self.btn_cancel.clicked.connect(self.reject)
         self.btn_save.clicked.connect(self.accept)
         self._sync_custom_state()
 
     def _sync_custom_state(self) -> None:
-        enabled = self.rb_custom.isChecked()
+        enabled = not self.chk_sibling.isChecked()
         self.edit_custom.setEnabled(enabled)
         self.btn_browse.setEnabled(enabled)
 
@@ -168,7 +181,7 @@ class SettingsDialog(QDialog):
             self.edit_custom.setText(selected)
 
     def values(self) -> tuple[str, str, bool, int, int, bool]:
-        mode = "custom" if self.rb_custom.isChecked() else "sibling"
+        mode = "sibling" if self.chk_sibling.isChecked() else "custom"
         return (
             mode,
             self.edit_custom.text().strip(),
@@ -235,7 +248,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("GD LEX – Verifica Deposito PCT/PDUA")
         self.resize(1180, 800)
 
-        self.rows: list[RowResult] = []
+        self.rows: list[RowState] = []
         self.input_path: Path | None = None
         self.last_output: Path | None = None
         self.last_summary: AnalysisSummary | None = None
@@ -334,10 +347,13 @@ class MainWindow(QMainWindow):
         self.btn_copy_summary = QPushButton("Copia riepilogo")
         self.btn_copy_report = QPushButton("Copia report")
         self.btn_settings = QPushButton("Impostazioni")
+        self.btn_print_report = QPushButton("Stampa report…")
+        self.btn_export_pdf = QPushButton("Esporta PDF…")
+        self.btn_export_pdf.setIcon(QIcon.fromTheme("application-pdf"))
         self.btn_reset = QPushButton("Reset / Clear")
         self.btn_reset.setObjectName("DangerButton")
 
-        for btn in [self.btn_analyze, self.btn_sanitize, self.btn_open, self.btn_open_report, self.btn_copy_summary, self.btn_copy_report, self.btn_settings, self.btn_reset]:
+        for btn in [self.btn_analyze, self.btn_sanitize, self.btn_open, self.btn_open_report, self.btn_copy_summary, self.btn_copy_report, self.btn_settings, self.btn_print_report, self.btn_export_pdf, self.btn_reset]:
             button_row.addWidget(btn)
         root.addLayout(button_row)
 
@@ -352,6 +368,8 @@ class MainWindow(QMainWindow):
         self.btn_copy_summary.clicked.connect(self.copy_summary)
         self.btn_copy_report.clicked.connect(self.copy_report)
         self.btn_settings.clicked.connect(self.show_settings)
+        self.btn_print_report.clicked.connect(self.print_report)
+        self.btn_export_pdf.clicked.connect(self.export_report_pdf)
         self.btn_reset.clicked.connect(self.reset)
 
     def _append_log(self, message: str) -> None:
@@ -401,7 +419,8 @@ class MainWindow(QMainWindow):
         summary = analyze(self.input_path, self.profile)
         self.last_summary = summary
         self.rows = [
-            RowResult(
+            RowState(
+                source_path=str(item.source),
                 original=item.source.name,
                 file_type=item.file_type,
                 status=item.status,
@@ -437,12 +456,13 @@ class MainWindow(QMainWindow):
         self.last_output = output
         self.last_summary = summary
         # aggiorna rows senza svuotare tabella
-        mapping = {r.original: r for r in self.rows}
+        mapping = {r.source_path: r for r in self.rows}
         for item in summary.files:
-            row = mapping.get(item.source.name)
+            row = mapping.get(str(item.source))
             if row is None:
-                row = RowResult(original=item.source.name, file_type=item.file_type, status=item.status)
+                row = RowState(source_path=str(item.source), original=item.source.name, file_type=item.file_type, status=item.status)
                 self.rows.append(row)
+            row.source_path = str(item.source)
             row.status = item.status
             row.issues = list(item.issues)
             row.new_name = item.suggested_name or item.source.name
@@ -473,13 +493,18 @@ class MainWindow(QMainWindow):
             )
         return "<hr>".join(blocks)
 
+    def _display_outcome(self, outcome: str) -> str:
+        if outcome in {OUTCOME_IMPOSSIBLE, OUTCOME_ERROR}:
+            return "FALLITA"
+        return outcome
+
     def _status_badge(self, status: str) -> str:
         return {"ok": "🟢 OK", "warning": "🟠 WARNING", "error": "🔴 ERROR"}.get(status, status.upper())
 
     def _refresh_model(self) -> None:
         self.model.removeRows(0, self.model.rowCount())
         ok = warn = err = 0
-        corr = parz = fail = 0
+        corr = parz = fail = not_run = 0
         for row in self.rows:
             status_text = self._status_badge(row.status)
             if row.status == "ok":
@@ -495,6 +520,8 @@ class MainWindow(QMainWindow):
                 parz += 1
             elif row.fix_outcome in {OUTCOME_IMPOSSIBLE, OUTCOME_ERROR}:
                 fail += 1
+            elif row.fix_outcome == OUTCOME_NOT_RUN:
+                not_run += 1
 
             issues_txt = "; ".join(f"{i.level}:{i.code}" for i in row.issues) if row.issues else "-"
             actions_txt = " | ".join(row.actions) if row.actions else "-"
@@ -505,7 +532,7 @@ class MainWindow(QMainWindow):
                 QStandardItem(status_text),
                 QStandardItem(issues_txt),
                 QStandardItem(row.new_name),
-                QStandardItem(row.fix_outcome),
+                QStandardItem(self._display_outcome(row.fix_outcome)),
                 QStandardItem(row.output_path),
                 QStandardItem(actions_txt),
             ]
@@ -519,10 +546,10 @@ class MainWindow(QMainWindow):
             self.model.appendRow(items)
 
         if self.last_summary:
-            self.report_synthetic.setPlainText(build_synthetic_report(self.last_summary))
-            self.log.setPlainText(build_technical_report(self.last_summary))
+            self.report_synthetic.setPlainText(self._full_report_text(technical=False))
+            self.log.setPlainText(self._full_report_text(technical=True))
         self.summary_label.setText(
-            f"Riepilogo correzione: OK={ok} WARNING={warn} ERROR={err} | CORRETTA={corr} PARZIALE={parz} FALLITA={fail}"
+            f"Riepilogo correzione: OK={ok} WARNING={warn} ERROR={err} | CORRETTA={corr} PARZIALE={parz} FALLITA={fail} NON ESEGUITA={not_run}"
         )
 
     def _on_table_double_clicked(self, index) -> None:
@@ -551,6 +578,20 @@ class MainWindow(QMainWindow):
         target = tech / "REPORT.txt"
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(target if target.exists() else tech)))
 
+
+    def _report_header(self) -> str:
+        output = str(self.last_output) if self.last_output else "-"
+        tech = self._technical_dir()
+        tech_path = str(tech) if tech and tech.exists() else "-"
+        return f"Output depositabile: {output}\nReport tecnico: {tech_path}\n\n"
+
+    def _full_report_text(self, technical: bool = True) -> str:
+        if not self.last_summary:
+            return ""
+        header = self._report_header()
+        base = build_technical_report(self.last_summary) if technical else build_synthetic_report(self.last_summary)
+        return header + base
+
     def copy_summary(self) -> None:
         QApplication.clipboard().setText(self.summary_label.text())
         self._append_log("Riepilogo copiato negli appunti")
@@ -558,8 +599,41 @@ class MainWindow(QMainWindow):
     def copy_report(self) -> None:
         if not self.last_summary:
             return
-        QApplication.clipboard().setText(build_synthetic_report(self.last_summary) + "\n\n" + build_technical_report(self.last_summary))
+        QApplication.clipboard().setText(self._full_report_text(technical=False) + "\n\n" + self._full_report_text(technical=True))
         self._append_log("Report copiato negli appunti")
+
+
+    def print_report(self) -> None:
+        if not self.last_summary:
+            QMessageBox.information(self, "Info", "Nessun report disponibile")
+            return
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        dialog = QPrintDialog(printer, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            self._append_log("Stampa report annullata")
+            return
+        doc = QTextDocument()
+        doc.setPlainText(self._full_report_text(technical=True))
+        doc.print(printer)
+        self._append_log("Report tecnico inviato alla stampante")
+
+    def export_report_pdf(self) -> None:
+        if not self.last_summary:
+            QMessageBox.information(self, "Info", "Nessun report disponibile")
+            return
+        target, _ = QFileDialog.getSaveFileName(self, "Esporta report PDF", "report_tecnico.pdf", "PDF (*.pdf)")
+        if not target:
+            self._append_log("Export PDF annullato")
+            return
+        if not target.lower().endswith(".pdf"):
+            target += ".pdf"
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+        printer.setOutputFileName(target)
+        doc = QTextDocument()
+        doc.setPlainText(self._full_report_text(technical=True))
+        doc.print(printer)
+        self._append_log(f"Report PDF esportato: {target}")
 
     def show_settings(self) -> None:
         dialog = SettingsDialog(

@@ -37,3 +37,12 @@ def test_no_signed_signed_regression():
     opts = {"enabled": True, "max_filename_len": 60, "max_output_path_len": 180}
     candidate, _ = smart_rename("atto_signed.pdf", ".pdf", opts, {"output_dir": Path("/tmp")})
     assert "_signed_signed" not in candidate
+
+
+def test_smart_rename_pagopa_uuid_like_human_name():
+    opts = {"enabled": True, "max_filename_len": 80, "max_output_path_len": 180}
+    name = "pagopa-ricevuta-123e4567-e89b-12d3-a456-426614174000.pdf"
+    candidate, reasons = smart_rename(name, ".pdf", opts, {"output_dir": Path("/tmp")})
+    assert candidate == "Ricevuta_PagoPA.pdf"
+    assert "uuid_or_random_pattern" in reasons
+
