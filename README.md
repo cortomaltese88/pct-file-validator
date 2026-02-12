@@ -1,18 +1,24 @@
-# GD LEX – Verifica Deposito PCT/PDUA
+# GD LEX – PCT File Validator (v1.0.0)
 
-Applicazione desktop + CLI per Linux, orientata al controllo conservativo dei file destinati al deposito telematico PCT/PDUA.
+Strumento interno Studio GD LEX per analizzare e correggere in modo conservativo file/cartelle destinati al deposito telematico.
+Include interfaccia GUI (PySide6) e CLI per uso operativo quotidiano su pratiche batch.
 
-## Caratteristiche principali
+### Caratteristiche principali
 
-- Analisi file/cartelle con regole da configurazione.
-- Segnalazione incompatibilità note (estensioni, ZIP non flat, nomi, PDF invalidi/cifrati).
-- Normalizzazione conservativa dei nomi file.
-- Correzione automatica batch su **tutte le righe analizzate**.
-- Output separato dall'input, senza modificare gli originali.
-- Report dettagliati: `REPORT.txt`, `REPORT.json`, `MANIFEST.csv`.
-- GUI PySide6 dark professionale + CLI `gdlex-check`.
+- Analisi di file singoli e cartelle con profilo configurabile.
+- Correzione automatica batch su tutte le righe analizzate.
+- Output separato in cartella `*_conforme`, senza modificare gli originali.
+- Report tecnici strutturati in `.gdlex`:
+  - `REPORT.txt`
+  - `REPORT.json`
+  - `MANIFEST.csv`
+- Tooltips estesi in GUI (hover) con spiegazione operativa di stato/problemi/esito.
+- Stampa report e **Export PDF** 📄 direttamente dalla GUI.
+- Smart Rename configurabile (attivo di default) con gestione path lunghi e collisioni.
+- Riparazione ZIP: flatten struttura, normalizzazione nomi interni, ricreazione archivio.
+- Evidenza warning informativi (es. `zip_mixed_pades`) senza bloccare automaticamente il flusso.
 
-## Installazione
+### Installazione
 
 ```bash
 python3.11 -m venv .venv
@@ -20,89 +26,108 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-## Uso CLI
+### Uso rapido
 
-Comando base:
+#### CLI
+
+Comando tipico:
 
 ```bash
-gdlex-check input_folder --sanitize --profile pdua_safe
+gdlex-check <input> --sanitize --profile pdua_safe
 ```
 
-Output default:
-- input cartella -> `<parent>/<nome_input>_conforme`
-- input file -> `<parent>/<stem_file>_conforme`
+Esempio:
+
+```bash
+gdlex-check fascicolo --sanitize --profile pdua_safe
+```
+
+Output default (consigliato):
+- input cartella → `<parent>/<nome_input>_conforme`
+- input file → `<parent>/<stem_file>_conforme`
 
 Output custom:
 
 ```bash
-gdlex-check fascicolo --sanitize --output /percorso/output
+gdlex-check fascicolo --sanitize --profile pdua_safe --output /percorso/output
 ```
 
-In questo caso l'output è creato in:
+In questo caso l’output viene creato in:
 `/percorso/output/<basename_input>_conforme`
 
-## Uso GUI
+#### GUI
 
 ```bash
 gdlex-gui
 ```
 
-Flusso:
-1. Trascinare file/cartella oppure usare i pulsanti di caricamento.
-2. Cliccare **Analizza**.
-3. Cliccare **Correggi automaticamente** per processare tutte le righe.
-4. Verificare colonna **Esito correzione** e log tecnico.
+Flusso operativo consigliato:
+1. Drag&drop di file/cartella (oppure caricamento da pulsanti).
+2. `Analizza`.
+3. `Correggi automaticamente`.
 
-## Come funziona “Correggi automaticamente”
+Dopo la correzione, la tabella resta popolata e mostra per ogni riga: stato finale, esito correzione, nuovo nome, output, azioni.
 
-La pipeline lavora su tutti i risultati di analisi:
+### Output e Report
 
-1. Crea cartella output separata (`*_conforme`).
-2. Per ogni file prova una correzione conservativa:
-   - normalizzazione nome file,
-   - riparazione ZIP (flatten, normalizzazione nomi interni, ricreazione archivio).
-3. Rianalizza l'output del singolo file.
-4. Assegna esito:
-   - `NON ESEGUITA`
-   - `OK`
-   - `CORRETTA`
-   - `PARZIALE`
-   - `IMPOSSIBILE`
-   - `ERRORE`
-5. Continua anche se un file fallisce (error handling per-file).
+L’applicazione non modifica i file originali: crea sempre un output separato `*_conforme`.
 
+Dentro la cartella output viene creata una directory tecnica `.gdlex` con:
+- `REPORT.txt` (report tecnico leggibile)
+- `REPORT.json` (strutturato, utile per integrazioni)
+- `MANIFEST.csv` (tracciamento sintetico file/output/esiti)
 
-## Smart Rename (v2 studio)
+Significato esiti correzione:
+- `NON ESEGUITA`: analisi effettuata, correzione non ancora lanciata.
+- `OK`: file già adeguato, copiato senza necessità di correzioni sostanziali.
+- `CORRETTA`: correzione applicata con esito positivo.
+- `PARZIALE`: output prodotto ma con warning/error residui.
+- `IMPOSSIBILE`: correzione automatica non eseguibile per quel file.
+- `ERRORE`: errore tecnico durante la correzione.
 
-Per ridurre rischi di path troppo lunghi (OneDrive/cartelle annidate) la correzione automatica include uno Smart Rename configurabile.
+### Smart Rename
 
-Trigger principali (default studio):
-- nome file oltre `max_filename_len=60`
-- pattern UUID/random nel nome
-- path output oltre `max_output_path_len=180`
+Smart Rename è attivo di default e configurabile da GUI (Impostazioni).
+
+Trigger principali:
+- superamento soglia `max_filename_len`
+- pattern UUID/random nel basename
+- superamento soglia `max_output_path_len`
 
 Comportamento:
-- prova ad assegnare un nome parlante (es. `Ricevuta_PagoPA.pdf`, `Atto_Precetto.pdf`, `PEC_MPS.msg`)
-- conserva suffix rilevanti come `_signed` / `_firmato` (evitando duplicazioni tipo `_signed_signed`)
-- evita collisioni con suffissi `_02`, `_03`, ...
-- traccia originale -> nuovo nei report tecnici in `.gdlex`
+- normalizzazione conservativa del nome
+- proposta di nomi più leggibili in casi noti (es. ricevute PagoPA)
+- prevenzione duplicazioni (es. evita `_signed_signed`)
+- gestione collisioni con suffissi incrementali (`_02`, `_03`, ...)
 
-In GUI (Impostazioni) puoi attivare/disattivare Smart Rename e regolare le due soglie.
+Nota operativa: il controllo sulla lunghezza del path aiuta a ridurre problemi tipici di ambienti sincronizzati (es. OneDrive) e cartelle annidate profonde.
 
-## Limiti noti
+### Limiti noti
 
-- `zip_mixed_pades` resta warning informativo (non split automatico in questa versione).
-- Alcuni file non ammessi per profilo sono marcati `IMPOSSIBILE` e non vengono corretti.
-- Verifica PDF basata su controlli strutturali leggeri (header/trailer/encryption marker).
+- `zip_mixed_pades` è trattato come warning informativo: non viene effettuato split automatico dei contenuti ZIP.
+- I controlli PDF sono strutturali/operativi (non costituiscono validazione forense completa del documento).
 
-## Struttura progetto
+### Struttura progetto
 
-- `core/`: regole, validatori, sanitizzazione, report
-- `gui/`: interfaccia PySide6
-- `cli/`: parser e comando shell
-- `configs/`: profili YAML
-- `tests/`: pytest
+- `core/` — logica di validazione, sanitizzazione, reportistica.
+- `gui/` — interfaccia desktop PySide6.
+- `cli/` — entrypoint e comandi terminale.
+- `configs/` — profili YAML.
+- `tests/` — suite `pytest`.
 
-## Avvertenze legali
+### Avvertenze
 
-Il software fornisce supporto tecnico-informatico conservativo e non sostituisce il controllo professionale del difensore sulla conformità del deposito telematico.
+Questo software è un supporto tecnico-operativo interno.
+Non fornisce garanzie di accettazione del deposito e non sostituisce la verifica professionale finale sul fascicolo da parte dell’operatore.
+
+### Changelog
+
+#### v1.0.0 — Prima release stabile
+
+- Analisi file/cartelle con profili configurabili.
+- Correzione batch con output separato `*_conforme`.
+- Report tecnici (`REPORT.txt`, `REPORT.json`, `MANIFEST.csv`) in `.gdlex`.
+- GUI dark con tabella risultati persistente e tooltips estesi.
+- Stampa report e Export PDF 📄 da interfaccia.
+- Smart Rename configurabile con mitigazione path lunghi/collisioni.
+- Riparazione ZIP (flatten + normalizzazione + rebuild).
