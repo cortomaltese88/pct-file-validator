@@ -1,0 +1,52 @@
+name: release-deb
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from git tag
+        id: ver
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies and test
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest pillow
+          pytest -q
+
+      - name: Build .deb
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          ./packaging/build_deb.sh
+
+      - name: Check versioned artifact and icon set
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          test -f "dist/gdlex-pct-validator_${APP_VERSION}_amd64.deb"
+          test -f "dist/icons/hicolor/256x256/apps/gdlex-pct-validator.png"
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/gdlex-pct-validator_${{ steps.ver.outputs.version }}_amd64.deb
