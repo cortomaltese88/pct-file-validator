@@ -1,0 +1,167 @@
+name: publish-apt-repo
+
+permissions:
+  contents: read
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish-apt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag/release
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            RAW_TAG="${{ github.event.release.tag_name }}"
+          else
+            RAW_TAG="${GITHUB_REF_NAME}"
+          fi
+          VERSION="${RAW_TAG#v}"
+          if [[ -z "$VERSION" ]]; then
+            echo "Errore: versione non risolta da tag/release" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved VERSION=$VERSION"
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y rsync dpkg-dev
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Build Debian package
+        shell: bash
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          ./packaging/build_deb.sh
+
+      - name: Verify built .deb exists
+        id: deb
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          DEB="dist/gdlex-pct-validator_${VERSION}_amd64.deb"
+          if [[ ! -f "$DEB" ]]; then
+            echo "Errore: pacchetto non trovato: $DEB" >&2
+            echo "Contenuto dist/:" >&2
+            ls -la dist >&2 || true
+            exit 1
+          fi
+          echo "deb_path=$DEB" >> "$GITHUB_OUTPUT"
+          echo "Found DEB: $DEB"
+
+      - name: Checkout APT repository
+        uses: actions/checkout@v4
+        with:
+          repository: cortomaltese88/gdlex-apt-repo
+          token: ${{ secrets.GDEX_APT_REPO_PAT }}
+          path: gdlex-apt-repo
+
+      - name: Copy package and regenerate APT indexes
+        shell: bash
+        env:
+          DEB_PATH: ${{ steps.deb.outputs.deb_path }}
+        run: |
+          set -euo pipefail
+          APT_REPO_DIR="gdlex-apt-repo"
+          POOL_DIR="$APT_REPO_DIR/pool/main/g/gdlex-pct-validator"
+          DIST_DIR="$APT_REPO_DIR/dists/stable/main/binary-amd64"
+
+          mkdir -p "$POOL_DIR" "$DIST_DIR"
+          cp -f "$DEB_PATH" "$POOL_DIR/"
+
+          if [[ ! -f "$POOL_DIR/$(basename "$DEB_PATH")" ]]; then
+            echo "Errore: copia .deb fallita nel repo APT" >&2
+            exit 1
+          fi
+
+          pushd "$APT_REPO_DIR" >/dev/null
+          dpkg-scanpackages -m pool /dev/null > dists/stable/main/binary-amd64/Packages
+          gzip -9c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
+
+          if [[ ! -s dists/stable/main/binary-amd64/Packages ]]; then
+            echo "Errore: Packages non generato o vuoto" >&2
+            exit 1
+          fi
+          if [[ ! -s dists/stable/main/binary-amd64/Packages.gz ]]; then
+            echo "Errore: Packages.gz non generato o vuoto" >&2
+            exit 1
+          fi
+
+          if [[ ! -f README.md ]]; then
+            cat > README.md <<'EOF'
+# GD LEX APT Repository
+
+Repository APT pubblico per `gdlex-pct-validator` (GitHub Pages).
+
+## Configurazione client (amd64)
+
+```bash
+sudo tee /etc/apt/sources.list.d/gdlex.list >/dev/null <<'SRC'
+deb [arch=amd64 trusted=yes] https://cortomaltese88.github.io/gdlex-apt-repo stable main
+SRC
+
+sudo apt update
+sudo apt install gdlex-pct-validator
+```
+
+Per aggiornare:
+
+```bash
+sudo apt upgrade
+```
+
+Nota: `arch=amd64` evita warning per architetture non supportate (es. i386).
+EOF
+          fi
+          popd >/dev/null
+
+      - name: Commit and push APT repository
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          pushd gdlex-apt-repo >/dev/null
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add pool dists README.md
+          if git diff --cached --quiet; then
+            echo "Nessuna modifica da pubblicare nel repo APT."
+            popd >/dev/null
+            exit 0
+          fi
+
+          git commit -m "Add gdlex-pct-validator $VERSION"
+          git push origin main
+          popd >/dev/null
+
+      - name: Final check (non-blocking remote visibility)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s gdlex-apt-repo/dists/stable/main/binary-amd64/Packages
+          test -s gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz
+          curl -fsSI https://cortomaltese88.github.io/gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz \
+            && echo "Remote URL reachable (may still be cached)." \
+            || echo "Remote URL not yet reachable (possible Pages cache delay)."

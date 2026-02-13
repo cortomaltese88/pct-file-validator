@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ROOT="/opt/gdlex-pct-validator"
+VENV_PY="$APP_ROOT/venv/bin/python"
+
+if [[ ! -x "$VENV_PY" ]]; then
+  echo "[gdlex-gui] Runtime non trovato: $VENV_PY" >&2
+  echo "[gdlex-gui] Reinstallare il pacchetto .deb o verificare i permessi in /opt/gdlex-pct-validator." >&2
+  exit 1
+fi
+
+exec "$VENV_PY" -m gui.app "$@"
