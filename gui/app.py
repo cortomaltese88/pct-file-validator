@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import base64
 import sys
 from pathlib import Path
 
-from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPalette
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPalette, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from gui.main_window import MainWindow
@@ -26,18 +27,20 @@ def _build_dark_palette() -> QPalette:
 
 
 def _load_app_icon() -> QIcon:
-    icon_candidates = [
-        Path(__file__).resolve().parent.parent / "assets" / "icons" / "gdlex-pct-validator.svg",
-        Path(__file__).resolve().parent.parent / "assets" / "icon.svg",
-    ]
-    for candidate in icon_candidates:
-        if candidate.exists():
-            return QIcon(str(candidate))
+    payload_path = Path(__file__).resolve().parent.parent / "assets" / "icons" / "master.base64"
+    if not payload_path.exists():
+        return QIcon()
+
+    payload = payload_path.read_text(encoding="utf-8").strip()
+    data = base64.b64decode(payload)
+    pix = QPixmap()
+    if pix.loadFromData(data, "PNG"):
+        return QIcon(pix)
     return QIcon()
 
 
 def main() -> int:
-    QGuiApplication.setDesktopFileName("gdlex-pct-validator.desktop")
+    QGuiApplication.setDesktopFileName("pct-file-validator.desktop")
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     app.setPalette(_build_dark_palette())

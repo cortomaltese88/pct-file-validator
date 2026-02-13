@@ -1,12 +1,12 @@
 #define MyAppName "GD LEX - PCT Validator"
 #ifndef MyAppVersion
-#define MyAppVersion "1.1.7"
+  #error MyAppVersion must be defined from git tag
+#endif
+#ifndef MyAppIcon
+  #error MyAppIcon must be defined (generated in CI)
 #endif
 #define MyAppPublisher "Studio GD LEX"
-#define MyAppExeName "GDLEX-PCT-Validator.exe"
-#ifndef MyAppIcon
-#define MyAppIcon "{#SourcePath}\..\..\dist-installer\assets\windows\app.ico"
-#endif
+#define MyAppExeName "pct-file-validator.exe"
 
 [Setup]
 AppId={{B4EAF5A4-7B4F-4A6C-8D11-5F07F7D34986}
@@ -17,7 +17,7 @@ DefaultDirName={localappdata}\GDLEX-PCT-Validator
 DefaultGroupName=GD LEX - PCT Validator
 DisableProgramGroupPage=yes
 OutputDir={#SourcePath}\..\..\dist-installer
-OutputBaseFilename=GDLEX-PCT-Validator-Setup
+OutputBaseFilename=pct-file-validator-{#MyAppVersion}-windows
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -34,7 +34,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Files]
-Source: "{#SourcePath}\..\..\dist\GDLEX-PCT-Validator\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#SourcePath}\..\..\dist\pct-file-validator\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\GD LEX - PCT Validator"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"

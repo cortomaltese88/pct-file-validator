@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=68", "wheel", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "gdlex-pct-validator"
-version = "1.1.7"
+dynamic = ["version"]
 description = "Validator e sanitizzatore conservativo per deposito telematico PCT/PDUA"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,6 +19,10 @@ gdlex-gui = "gui.app:main"
 
 [tool.setuptools]
 packages = ["core", "cli", "gui"]
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

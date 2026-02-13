@@ -209,3 +209,5 @@ __marimo__/
 
 # Generated installer assets (icons/build outputs)
 dist-installer/
+dist/icons/
+dist/windows-version.txt

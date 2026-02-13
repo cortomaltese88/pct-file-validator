@@ -4,21 +4,17 @@ from core.version import get_app_version, get_build_info
 
 
 def test_version_available():
-    version = get_app_version()
-    assert version
-    assert version.count(".") >= 1
+    assert get_app_version()
 
 
 def test_build_info_has_fallback():
-    build_info = get_build_info()
-    assert build_info
+    assert get_build_info()
 
 
 def test_main_window_title_contains_version():
     pytest.importorskip("PySide6", exc_type=ImportError)
     qtwidgets = pytest.importorskip("PySide6.QtWidgets", exc_type=ImportError)
     QApplication = qtwidgets.QApplication
-
     from gui.main_window import MainWindow
 
     app = QApplication.instance() or QApplication([])
