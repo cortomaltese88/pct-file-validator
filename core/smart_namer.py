@@ -14,11 +14,6 @@ def detect_uuid_like(name: str) -> bool:
     return bool(UUID_RE.search(stem) or LONG_RANDOM_RE.search(stem))
 
 
-def _extract_meaningful_tokens(stem: str) -> list[str]:
-    tokens = [t for t in re.split(r"[^A-Za-z0-9]+", stem) if t]
-    stop = {"pec", "email", "posta", "elettronica", "signed", "firmato", "pdf", "msg", "eml", "spa"}
-    out = [t.upper() for t in tokens if t.lower() not in stop and len(t) >= 2]
-    return out
 
 
 def classify_filename(name: str) -> str | None:

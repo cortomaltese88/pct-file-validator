@@ -4,8 +4,9 @@ import os
 import re
 import subprocess
 from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from pathlib import Path
-from importlib.metadata import PackageNotFoundError, version as pkg_version
 
 PRIMARY_PACKAGE = "gdlex-pct-validator"
 LEGACY_PACKAGE = "pct-file-validator"

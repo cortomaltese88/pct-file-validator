@@ -55,3 +55,15 @@ source .venv/bin/activate
 pip install -e .
 pytest -q
 ```
+
+
+## Qualità codice
+
+Comando consigliato locale:
+
+```bash
+ruff check core cli gui tests tools
+python -m pytest -q
+```
+
+La quality gate (`ruff` + `pytest`) gira nel workflow CI su PR; i workflow release restano focalizzati sul packaging.

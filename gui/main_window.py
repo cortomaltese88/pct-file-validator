@@ -20,12 +20,12 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QMessageBox,
-    QPushButton,
     QPlainTextEdit,
-    QSplitter,
+    QPushButton,
     QSpinBox,
-    QTabWidget,
+    QSplitter,
     QTableView,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -33,7 +33,6 @@ from PySide6.QtWidgets import (
 from core.config import load_config, resolve_profile
 from core.models import AnalysisSummary
 from core.reporting import build_synthetic_report, build_technical_report
-from core.version import get_app_version, get_build_info
 from core.sanitizer import (
     OUTCOME_ERROR,
     OUTCOME_FIXED,
@@ -45,6 +44,7 @@ from core.sanitizer import (
     iter_input_files,
     sanitize,
 )
+from core.version import get_app_version, get_build_info
 
 PROBLEM_HELP = {
     "filename_normalize": {
