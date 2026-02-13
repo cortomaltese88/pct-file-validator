@@ -44,7 +44,7 @@ from core.sanitizer import (
     iter_input_files,
     sanitize,
 )
-from core.version import get_app_version, get_build_info
+from core.version import get_version_info
 
 PROBLEM_HELP = {
     "filename_normalize": {
@@ -256,7 +256,9 @@ class DropArea(QFrame):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.app_version = get_app_version()
+        self.version_info = get_version_info()
+        self.app_version = self.version_info["version"]
+        self.build_info = self.version_info["build"]
         self.setWindowTitle(f"GD LEX – Verifica Deposito PCT/PDUA (v{self.app_version})")
         self.resize(1180, 800)
 
@@ -399,7 +401,7 @@ class MainWindow(QMainWindow):
             (
                 "<b>GD LEX – Verifica Deposito PCT/PDUA</b><br>"
                 f"Versione: {self.app_version}<br>"
-                f"Build: {get_build_info()}<br><br>"
+                f"Build: {self.build_info}<br><br>"
                 "Credits: Studio GD LEX"
             ),
         )

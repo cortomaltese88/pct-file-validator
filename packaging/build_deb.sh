@@ -18,6 +18,36 @@ ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 APP_PREFIX="$STAGE_DIR/opt/gdlex-pct-validator"
 APP_SRC="$APP_PREFIX/app"
 
+
+BUILD_DATE="${BUILD_DATE:-$(date -u +%Y-%m-%d)}"
+BUILD_CHANNEL="deb"
+BUILD_INFO_FILE="$ROOT_DIR/core/_build_info.py"
+
+RESTORE_BUILD_INFO=0
+BACKUP_BUILD_INFO=""
+if [[ -f "$BUILD_INFO_FILE" ]]; then
+  RESTORE_BUILD_INFO=1
+  BACKUP_BUILD_INFO="$(mktemp)"
+  cp "$BUILD_INFO_FILE" "$BACKUP_BUILD_INFO"
+fi
+
+cat > "$BUILD_INFO_FILE" <<EOF
+"""Generated at packaging time. Do not edit manually."""
+__version__ = "$VERSION"
+__build__ = "$BUILD_DATE"
+__channel__ = "$BUILD_CHANNEL"
+EOF
+
+cleanup_build_info() {
+  if [[ "$RESTORE_BUILD_INFO" -eq 1 ]]; then
+    cp "$BACKUP_BUILD_INFO" "$BUILD_INFO_FILE"
+    rm -f "$BACKUP_BUILD_INFO"
+  else
+    rm -f "$BUILD_INFO_FILE"
+  fi
+}
+trap cleanup_build_info EXIT
+
 rm -rf "$STAGE_DIR"
 mkdir -p "$STAGE_DIR" "$DIST_DIR"
 

@@ -3,13 +3,14 @@ from __future__ import annotations
 import os
 import re
 import subprocess
-from datetime import datetime, timezone
+from importlib import import_module
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
 from pathlib import Path
 
 PRIMARY_PACKAGE = "gdlex-pct-validator"
 LEGACY_PACKAGE = "pct-file-validator"
+UNKNOWN_VERSION = "0.0.0+unknown"
 
 
 def _from_tag_ref(raw: str | None) -> str | None:
@@ -50,22 +51,64 @@ def _version_from_pyproject() -> str | None:
     return None
 
 
+def _build_info_values() -> tuple[str | None, str | None, str | None]:
+    try:
+        module = import_module("core._build_info")
+    except Exception:
+        return None, None, None
+
+    version = getattr(module, "__version__", None)
+    build = getattr(module, "__build__", None)
+    channel = getattr(module, "__channel__", None)
+
+    if version in {None, "", UNKNOWN_VERSION}:
+        version = None
+    if build in {None, "", "unknown"}:
+        build = None
+    if channel in {None, "", "unknown"}:
+        channel = None
+
+    return version, build, channel
+
+
 def get_app_version() -> str:
-    # Prefer the actually installed package version shown to end-users.
+    env_version = _from_tag_ref(os.getenv("APP_VERSION"))
+    build_version, _, _ = _build_info_values()
+
     return (
-        _version_from_metadata()
-        or _version_from_pyproject()
-        or _from_tag_ref(os.getenv("APP_VERSION"))
+        env_version
+        or build_version
+        or _version_from_metadata()
         or _from_tag_ref(os.getenv("GITHUB_REF_NAME"))
         or _from_tag_ref(os.getenv("GIT_TAG"))
         or _git_tag_version()
-        or "dev"
+        or _version_from_pyproject()
+        or UNKNOWN_VERSION
     )
 
 
 def get_build_info() -> str:
+    _, build_date, build_channel = _build_info_values()
     commit = os.getenv("GIT_COMMIT") or os.getenv("GITHUB_SHA")
-    build_date = os.getenv("BUILD_DATE") or os.getenv("GITHUB_RUN_STARTED_AT")
-    if not build_date:
-        build_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return f"{commit[:8]} · {build_date}" if commit else f"dev · {build_date}"
+
+    if commit:
+        date = os.getenv("BUILD_DATE") or os.getenv("GITHUB_RUN_STARTED_AT") or build_date
+        return f"{commit[:8]} · {date}" if date else commit[:8]
+
+    if build_date and build_channel:
+        return f"{build_date} · {build_channel}"
+    if build_date:
+        return build_date
+
+    dynamic_date = os.getenv("BUILD_DATE") or os.getenv("GITHUB_RUN_STARTED_AT")
+    if dynamic_date:
+        return dynamic_date
+
+    return "unknown"
+
+
+def get_version_info() -> dict[str, str]:
+    return {
+        "version": get_app_version(),
+        "build": get_build_info(),
+    }
