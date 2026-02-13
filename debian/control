@@ -1,0 +1,13 @@
+Source: gdlex-pct-validator
+Section: utils
+Priority: optional
+Maintainer: Studio GD LEX
+Standards-Version: 4.6.2
+Build-Depends: debhelper-compat (= 13)
+
+Package: gdlex-pct-validator
+Architecture: amd64
+Depends: ${misc:Depends}, python3, python3-venv, python3-pip
+Description: Validator e sanitizzatore conservativo per deposito telematico PCT/PDUA
+ Tool interno GD LEX con GUI e CLI per analisi batch, correzioni conservative
+ e report tecnici per fascicoli PCT/PDUA.
