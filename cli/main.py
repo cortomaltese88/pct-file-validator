@@ -6,10 +6,12 @@ from pathlib import Path
 
 from core.config import load_config, resolve_profile
 from core.sanitizer import analyze, sanitize
+from core.version import get_app_version
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="gdlex-check", description="Validazione conservativa PCT/PDUA")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {get_app_version()}")
     parser.add_argument("input_folder", type=Path, help="File o cartella di input")
     parser.add_argument("--output", type=Path, help="Cartella output custom")
     parser.add_argument("--profile", default="pdua_safe", help="Profilo regole (default: pdua_safe)")

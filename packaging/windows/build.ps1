@@ -16,9 +16,10 @@ $pip = Join-Path $venv "Scripts/pip.exe"
 & $pip install -e .
 & $pip install pyinstaller pillow cairosvg
 
-& $py packaging/generate_icons.py
+$iconOut = Join-Path $root "dist-installer/assets"
+& $py packaging/generate_icons.py --output-dir $iconOut --check
 
-$stableIcon = Join-Path $root "packaging/windows/assets/app.ico"
+$stableIcon = Join-Path $iconOut "windows/app.ico"
 if (-not (Test-Path $stableIcon)) {
   throw "Installer icon not found after generation: $stableIcon"
 }
@@ -38,6 +39,7 @@ if (-not (Test-Path $manifest)) {
   --collect-all PySide6 `
   --add-data "configs\default.yaml;configs" `
   --add-data "configs;configs" `
+  --add-data "assets\icons;assets/icons" `
   gui/app.py
 
 Write-Host "PyInstaller build completed: dist/GDLEX-PCT-Validator/"

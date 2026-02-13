@@ -1,172 +1,77 @@
-# GD LEX – PCT File Validator (v1.0.0)
+# GD LEX – PCT File Validator
 
-Strumento interno Studio GD LEX per analizzare e correggere in modo conservativo file/cartelle destinati al deposito telematico.
-Include interfaccia GUI (PySide6) e CLI per uso operativo quotidiano su pratiche batch.
+![Latest Release](https://img.shields.io/github/v/release/studio-gdlex/pct-file-validator?display_name=release)
 
-### Caratteristiche principali
+Strumento interno **Studio GD LEX** per analizzare e correggere in modo conservativo file/cartelle destinati al deposito telematico PCT/PDUA.
 
-- Analisi di file singoli e cartelle con profilo configurabile.
-- Correzione automatica batch su tutte le righe analizzate.
-- Output separato in cartella `*_conforme`, senza modificare gli originali.
-- Report tecnici in `.gdlex`: `REPORT.txt`, `REPORT.json`, `MANIFEST.csv`.
-- Tooltips estesi in GUI (hover) con spiegazione operativa di stato/problemi/esito.
-- Stampa report e **Export PDF** 📄 direttamente dalla GUI.
-- Smart Rename configurabile (attivo di default) con gestione path lunghi/collisioni.
-- Riparazione ZIP (flatten struttura + normalizzazione nomi interni + rebuild).
-- Warning informativi evidenziati (es. `zip_mixed_pades`).
+## Versione
 
-### Installazione
+La versione visualizzata in GUI (titolo finestra + About), CLI (`gdlex-check --version`) e packaging deriva dallo stesso valore in `pyproject.toml` tramite `core/version.py`.
 
-#### Da sorgente (sviluppo)
+## Download release
+
+Scarica sempre gli artefatti più aggiornati dalla pagina **GitHub Releases** del repository.
+
+- **Windows**: `GDLEX-PCT-Validator-Setup.exe`
+- **Debian/Ubuntu**: `gdlex-pct-validator_<version>_amd64.deb`
+- **Checksum**: file `.sha256` allegati alla release
+
+## Installazione
+
+### Windows
+
+1. Scarica `GDLEX-PCT-Validator-Setup.exe` dalla release.
+2. Esegui il setup (installazione per-user, non richiede admin di default).
+3. Avvia dal menu Start: **GD LEX - PCT Validator**.
+
+> Nota SmartScreen/AV: su eseguibili non firmati può apparire un warning. È comportamento previsto.
+
+### Debian / Ubuntu
 
 ```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
-
-#### Da pacchetto `.deb` (Slimbook OS / Ubuntu-based)
-
-```bash
-sudo dpkg -i dist/gdlex-pct-validator_1.0.0_amd64.deb
+sudo dpkg -i gdlex-pct-validator_<version>_amd64.deb
 sudo apt -f install
 ```
 
-Dopo l’installazione:
-- applicazione in `/opt/gdlex-pct-validator/`
-- launcher CLI/GUI: `gdlex-gui`
-- voce menu desktop: **GD LEX – Verifica Deposito PCT/PDUA**
+Il pacchetto installa launcher desktop e icone hicolor (PNG multi-size + SVG scalable).
 
-### Uso rapido
+## Uso rapido
 
-#### CLI
-
-Comando tipico:
+### CLI
 
 ```bash
 gdlex-check <input> --sanitize --profile pdua_safe
+gdlex-check --version
 ```
 
-Esempio con output custom:
-
-```bash
-gdlex-check fascicolo --sanitize --profile pdua_safe --output /percorso/output
-```
-
-Output default:
-- input cartella → `<parent>/<nome_input>_conforme`
-- input file → `<parent>/<stem_file>_conforme`
-
-#### GUI
+### GUI
 
 ```bash
 gdlex-gui
 ```
 
-Flusso operativo consigliato:
-1. Drag&drop di file/cartella (oppure caricamento da pulsanti).
-2. `Analizza`.
-3. `Correggi automaticamente`.
+Nel menu **Aiuto → Informazioni…** trovi:
+- nome applicazione
+- versione
+- build info (commit breve + data)
+- credits Studio GD LEX
 
-La tabella resta popolata e mostra per ogni riga: stato finale, esito correzione, nuovo nome, output, azioni.
+## Packaging icone (no binari in git)
 
-### Output e Report
+L’icona sorgente è solo testo SVG:
+- `assets/icons/gdlex-pct-validator.svg`
 
-L’applicazione non modifica i file originali: crea sempre un output separato `*_conforme`.
-
-Dentro la cartella output viene creata una directory tecnica `.gdlex` con:
-- `REPORT.txt` (report tecnico leggibile)
-- `REPORT.json` (strutturato)
-- `MANIFEST.csv` (tracciamento sintetico)
-
-Significato esiti correzione:
-- `NON ESEGUITA`: analisi effettuata, correzione non lanciata.
-- `OK`: file già adeguato, copiato senza correzioni sostanziali.
-- `CORRETTA`: correzione applicata con esito positivo.
-- `PARZIALE`: output prodotto ma con warning/error residui.
-- `IMPOSSIBILE`: correzione automatica non eseguibile per quel file.
-- `ERRORE`: errore tecnico durante la correzione.
-
-### Smart Rename
-
-Smart Rename è attivo di default e configurabile da GUI (Impostazioni).
-
-Trigger principali:
-- superamento `max_filename_len`
-- pattern UUID/random nel basename
-- superamento `max_output_path_len`
-
-Comportamento:
-- normalizzazione conservativa del nome
-- proposta di nomi più leggibili (es. ricevute PagoPA)
-- prevenzione duplicazioni (evita `_signed_signed`)
-- gestione collisioni con suffissi incrementali (`_02`, `_03`, ...)
-
-Nota operativa: la mitigazione dei path lunghi riduce problemi tipici in OneDrive e cartelle annidate profonde.
-
-### Limiti noti
-
-- `zip_mixed_pades` è warning informativo: non viene eseguito split automatico dei contenuti ZIP.
-- I controlli PDF sono strutturali/operativi (non validazione forense completa).
-
-### Struttura progetto
-
-- `core/` — validazione, sanitizzazione, reportistica.
-- `gui/` — interfaccia desktop PySide6.
-- `cli/` — comandi terminale.
-- `configs/` — profili YAML.
-- `packaging/` — script/build assets `.deb` (launcher, desktop file).
-- `assets/icons/` — icone applicazione.
-- `tests/` — suite `pytest`.
-
-### Avvertenze
-
-Tool tecnico interno Studio GD LEX.
-Non fornisce garanzie di accettazione del deposito e non sostituisce la verifica professionale finale sul fascicolo.
-
-### Troubleshooting (KDE / Wayland)
-
-- Se il launcher non parte, verificare runtime locale del pacchetto:
-  - `/opt/gdlex-pct-validator/venv/bin/python`
-- Avvio diretto diagnostico:
+I binari (`.png`, `.ico`) vengono generati **solo in build/CI** con:
 
 ```bash
-/opt/gdlex-pct-validator/venv/bin/python -m gui.app
+python packaging/generate_icons.py --output-dir dist-installer/assets --check
 ```
 
-- In ambienti con policy grafiche restrittive, provare sessione X11 o avvio da terminale per leggere eventuali errori Qt.
-
-### Release GitHub (v1.0.0)
-
-Workflow consigliato:
+## Sviluppo locale
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+pytest -q
 ```
-
-Con il workflow CI (`.github/workflows/release-deb.yml`):
-- esegue `compileall` + `pytest -q`
-- genera il `.deb`
-- crea release **GD LEX PCT Validator 1.0.0**
-- allega l’asset `.deb`
-
-### Changelog
-
-#### v1.0.0 — Prima release stabile
-
-- Analisi file/cartelle con profili configurabili.
-- Correzione batch con output separato `*_conforme`.
-- Report tecnici (`REPORT.txt`, `REPORT.json`, `MANIFEST.csv`) in `.gdlex`.
-- GUI dark con tabella risultati persistente e tooltips estesi.
-- Stampa report e Export PDF 📄.
-- Smart Rename configurabile con mitigazione path lunghi/collisioni.
-- Riparazione ZIP (flatten + normalizzazione + rebuild).
-
-
-### Windows installer (per-user)
-
-- L'installer Windows usa installazione per-user in `%LOCALAPPDATA%\GDLEX-PCT-Validator` (non richiede admin di default).
-- È possibile forzare installazione elevata via opzioni Inno Setup da command-line (`PrivilegesRequiredOverridesAllowed=commandline`).
-- Nota tecnica: su Windows il drag&drop verso app elevate può essere bloccato da UIPI. L'app viene eseguita `asInvoker` per mantenere drag&drop compatibile con Explorer.
-- SmartScreen/AV possono mostrare avvisi su eseguibili non firmati: è comportamento atteso di Windows per file nuovi/non reputati.

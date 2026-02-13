@@ -1,11 +1,11 @@
 #define MyAppName "GD LEX - PCT Validator"
 #ifndef MyAppVersion
-#define MyAppVersion "1.0.5"
+#define MyAppVersion "1.1.7"
 #endif
 #define MyAppPublisher "Studio GD LEX"
 #define MyAppExeName "GDLEX-PCT-Validator.exe"
 #ifndef MyAppIcon
-#define MyAppIcon "{#SourcePath}\assets\app.ico"
+#define MyAppIcon "{#SourcePath}\..\..\dist-installer\assets\windows\app.ico"
 #endif
 
 [Setup]

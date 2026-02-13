@@ -34,51 +34,26 @@ jobs:
         run: |
           ./packaging/windows/build.ps1
 
-      - name: Preflight check bundled config
+      - name: Smoke check generated icon + bundled config
         shell: pwsh
         run: |
           $cfg = "dist\GDLEX-PCT-Validator\_internal\configs\default.yaml"
-          Write-Host "Checking bundled config: $cfg"
-          if (!(Test-Path $cfg)) {
-            if (Test-Path "dist\GDLEX-PCT-Validator") { dir dist\GDLEX-PCT-Validator -Recurse }
-            throw "Missing bundled config: $cfg"
-          }
-          Write-Host "Bundled config found: $(Resolve-Path $cfg)"
+          if (!(Test-Path $cfg)) { throw "Missing bundled config: $cfg" }
+
+          $icon = "dist-installer\assets\windows\app.ico"
+          if (!(Test-Path $icon)) { throw "Missing generated icon: $icon" }
 
       - name: Install Inno Setup
         shell: pwsh
         run: |
           choco install innosetup -y
 
-      - name: Check and prepare installer icon
-        shell: pwsh
-        run: |
-          Write-Host ">> Checking paths"
-          Write-Host "PWD: $(Get-Location)"
-          if (Test-Path 'dist-installer') { dir dist-installer -Recurse } else { Write-Host 'dist-installer not found yet' }
-          dir packaging/windows -Recurse
-
-          python packaging/generate_icons.py
-
-          $iconAbs = Join-Path (Resolve-Path '.').Path 'packaging\windows\assets\app.ico'
-          $iconDir = Split-Path -Parent $iconAbs
-          if (!(Test-Path $iconAbs)) {
-            Write-Host "Stable icon missing, generating placeholder..."
-            python -c "from PIL import Image, ImageDraw; import os; os.makedirs('packaging/windows/assets', exist_ok=True); img=Image.new('RGBA',(256,256),(255,255,255,0)); d=ImageDraw.Draw(img); d.rectangle([16,16,240,240], outline='black', width=6); img.save('packaging/windows/assets/app.ico'); print('Placeholder .ico generated')"
-          }
-
-          if (!(Test-Path $iconAbs)) { throw "Missing installer icon: $iconAbs" }
-          Write-Host "Installer icon absolute path: $iconAbs"
-          dir $iconDir
-
-          if (!(Test-Path 'dist\GDLEX-PCT-Validator')) { throw 'Missing PyInstaller output directory: dist\GDLEX-PCT-Validator' }
-
       - name: Build Windows installer (.exe)
         shell: pwsh
         run: |
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           $iss = (Resolve-Path "packaging/windows/installer.iss").Path
-          $iconAbs = (Resolve-Path "packaging/windows/assets/app.ico").Path
+          $iconAbs = (Resolve-Path "dist-installer/assets/windows/app.ico").Path
           & $iscc "/DMyAppVersion=$($env:GITHUB_REF_NAME.TrimStart('v'))" "/DMyAppIcon=$iconAbs" $iss
 
       - name: Generate checksum and release notes

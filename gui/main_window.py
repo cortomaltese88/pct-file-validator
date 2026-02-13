@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QFont, QFontDatabase, QIcon, QStandardItem, QStandardItemModel, QTextDocument
+from PySide6.QtGui import QAction, QDesktopServices, QFont, QFontDatabase, QIcon, QStandardItem, QStandardItemModel, QTextDocument
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import (
     QApplication,
@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 from core.config import load_config, resolve_profile
 from core.models import AnalysisSummary
 from core.reporting import build_synthetic_report, build_technical_report
+from core.version import get_app_version, get_build_info
 from core.sanitizer import (
     OUTCOME_ERROR,
     OUTCOME_FIXED,
@@ -255,7 +256,8 @@ class DropArea(QFrame):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("GD LEX – Verifica Deposito PCT/PDUA")
+        self.app_version = get_app_version()
+        self.setWindowTitle(f"GD LEX – Verifica Deposito PCT/PDUA (v{self.app_version})")
         self.resize(1180, 800)
 
         self.rows: list[RowState] = []
@@ -277,6 +279,7 @@ class MainWindow(QMainWindow):
 
         self._setup_styles()
         self._build_ui()
+        self._build_menu()
         self._restore_settings()
 
     def _setup_styles(self) -> None:
@@ -381,6 +384,26 @@ class MainWindow(QMainWindow):
         self.btn_print_report.clicked.connect(self.print_report)
         self.btn_export_pdf.clicked.connect(self.export_report_pdf)
         self.btn_reset.clicked.connect(self.reset)
+
+
+    def _build_menu(self) -> None:
+        help_menu = self.menuBar().addMenu("Aiuto")
+        about_action = QAction("Informazioni…", self)
+        about_action.triggered.connect(self.show_about_dialog)
+        help_menu.addAction(about_action)
+
+    def show_about_dialog(self) -> None:
+        QMessageBox.about(
+            self,
+            "Informazioni",
+            (
+                "<b>GD LEX – Verifica Deposito PCT/PDUA</b><br>"
+                f"Versione: {self.app_version}<br>"
+                f"Build: {get_build_info()}<br><br>"
+                "Credits: Studio GD LEX<br>"
+                "Repository: github.com/studio-gdlex/pct-file-validator"
+            ),
+        )
 
     def _append_log(self, message: str) -> None:
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
