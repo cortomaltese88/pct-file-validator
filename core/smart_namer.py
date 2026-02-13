@@ -22,28 +22,9 @@ def _extract_meaningful_tokens(stem: str) -> list[str]:
 
 
 def classify_filename(name: str) -> str | None:
-    stem = Path(name).stem
-    lower = stem.lower().replace("-", " ").replace("_", " ")
-    if "pagopa" in lower or "ricevuta" in lower:
-        return "Ricevuta_PagoPA"
-    if "contributo" in lower and "unificat" in lower:
-        return "Contributo_Unificato"
-    if "precetto" in lower:
-        return "Atto_Precetto"
-    if "titolo" in lower and "esecutiv" in lower:
-        return "Titolo_Esecutivo"
-    if "decreto" in lower and "esecutor" in lower:
-        return "Decreto_Esecutorieta"
-    if "attestazione" in lower and "conform" in lower:
-        return "Attestazione_Conformita"
-    if "pec" in lower or "email" in lower or "posta elettronica" in lower:
-        tokens = _extract_meaningful_tokens(stem)
-        if tokens:
-            return f"PEC_{'_'.join(tokens)}"
-        return "PEC"
-    if "notifica" in lower or "ufficiale giudiziario" in lower:
-        return "Notifica_Ufficiale_Giudiziario"
+    """Disabled semantic classification to preserve original wording strictly."""
     return None
+
 
 
 def ensure_unique(nameset: set[str], candidate: str) -> str:
@@ -106,7 +87,7 @@ def smart_rename(name: str, ext: str, opts: dict, context: dict | None = None) -
     if not reasons:
         return original, []
 
-    label = classify_filename(original) or sanitize_filename(stem, max_len=max_filename_len)
+    label = sanitize_filename(stem, max_len=max_filename_len)
     suffix = _signed_suffix(stem)
 
     if suffix and label.lower().endswith(suffix):

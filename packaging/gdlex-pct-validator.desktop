@@ -3,6 +3,7 @@ Type=Application
 Name=GD LEX – Verifica Deposito PCT/PDUA
 Exec=gdlex-gui
 Icon=gdlex-pct-validator
+StartupWMClass=gdlex-pct-validator
 Terminal=false
 Categories=Office;Utility;
 StartupNotify=true

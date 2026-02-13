@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from core.smart_namer import classify_filename, detect_uuid_like, ensure_unique, smart_rename
+from core.smart_namer import detect_uuid_like, ensure_unique, smart_rename
 
 
 def test_detect_uuid_like_true():
@@ -9,15 +9,6 @@ def test_detect_uuid_like_true():
 
 def test_detect_uuid_like_long_random_true():
     assert detect_uuid_like("AB12CD34EF56GH78IJ90KL12MN34OP56.pdf") is True
-
-
-def test_classify_filename_pagopa():
-    assert classify_filename("ricevuta_pagopa_123.pdf") == "Ricevuta_PagoPA"
-
-
-def test_classify_filename_pec_keeps_meaningful_tokens():
-    out = classify_filename("Indirizzo pec IPSO EDILE - Inipec.pdf")
-    assert out == "PEC_INDIRIZZO_IPSO_EDILE_INIPEC"
 
 
 def test_ensure_unique_sequence():
@@ -40,18 +31,13 @@ def test_no_signed_signed_regression():
     assert "_signed_signed" not in candidate
 
 
-def test_smart_rename_pagopa_uuid_like_human_name():
-    opts = {"enabled": True, "max_filename_len": 80, "max_output_path_len": 180}
-    name = "pagopa-ricevuta-123e4567-e89b-12d3-a456-426614174000.pdf"
-    candidate, reasons = smart_rename(name, ".pdf", opts, {"output_dir": Path("/tmp")})
-    assert candidate == "Ricevuta_PagoPA.pdf"
-    assert "uuid_or_random_pattern" in reasons
-
-
-def test_smart_rename_distinguishes_pec_subjects():
-    opts = {"enabled": True, "max_filename_len": 140, "max_output_path_len": 200}
-    a, _ = smart_rename("Indirizzo pec IPSO EDILE - Inipec.pdf", ".pdf", opts, {"output_dir": Path("/tmp")})
-    b, _ = smart_rename("Indirizzo pec UNICREDIT SPA - Inipec.pdf", ".pdf", opts, {"output_dir": Path("/tmp")})
-    assert a.startswith("PEC_INDIRIZZO_IPSO_EDILE_INIPEC")
-    assert b.startswith("PEC_INDIRIZZO_UNICREDIT_INIPEC")
-    assert a != b
+def test_smart_rename_preserves_words_no_semantic_substitution():
+    opts = {"enabled": True, "max_filename_len": 120, "max_output_path_len": 180}
+    candidate, _ = smart_rename(
+        "Nota per Ufficiale Giudiziario_signed.pdf",
+        ".pdf",
+        opts,
+        {"output_dir": Path("/tmp")},
+    )
+    assert candidate == "Nota_per_Ufficiale_Giudiziario_signed.pdf"
+    assert "Notifica" not in candidate

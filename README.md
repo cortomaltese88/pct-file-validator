@@ -1,20 +1,20 @@
 # GD LEX – Verifica Deposito PCT/PDUA
 
-![Latest Release](https://img.shields.io/github/v/release/studio-gdlex/pct-file-validator?display_name=release)
+![Latest Release](https://img.shields.io/github/v/release/studio-gdlex/gdlex-pct-validator?display_name=release)
 
 Tool desktop (GUI + CLI) per analisi/correzione conservativa dei file per deposito telematico.
 
 ## Download
 
 Dalla pagina Releases:
-- **Windows**: `pct-file-validator-<version>-windows.exe`
-- **Debian/Ubuntu**: `pct-file-validator_<version>_amd64.deb`
+- **Windows**: `gdlex-pct-validator-<version>-windows.exe`
+- **Debian/Ubuntu**: `gdlex-pct-validator_<version>_amd64.deb`
 - **Checksum**: file `.sha256` allegati
 
 ## Installazione rapida
 
 ### Windows
-1. Scarica `pct-file-validator-<version>-windows.exe`
+1. Scarica `gdlex-pct-validator-<version>-windows.exe`
 2. Esegui il setup per-user
 3. Avvia dal menu Start
 
@@ -23,7 +23,7 @@ Dalla pagina Releases:
 ### Debian / Ubuntu
 
 ```bash
-sudo dpkg -i pct-file-validator_<version>_amd64.deb
+sudo dpkg -i gdlex-pct-validator_<version>_amd64.deb
 sudo apt -f install
 ```
 
@@ -43,8 +43,8 @@ Il sistema di release è hardenizzato e deterministico:
 - **Nessun `.ico` manuale**: i binari icona vengono prodotti solo in CI/build (`dist/icons/...`) e non sono versionati in git.
 - **Single source versione**: la versione deriva **solo dal tag Git** (`GITHUB_REF_NAME`/`APP_VERSION`).
 - **Artifact versionati obbligatori**:
-  - `pct-file-validator_<version>_amd64.deb`
-  - `pct-file-validator-<version>-windows.exe`
+  - `gdlex-pct-validator_<version>_amd64.deb`
+  - `gdlex-pct-validator-<version>-windows.exe`
 - **No passi manuali**: workflow GitHub Actions estrae versione, genera icone, builda pacchetti e pubblica asset.
 
 ## Sviluppo locale

@@ -40,7 +40,7 @@ def _load_app_icon() -> QIcon:
 
 
 def main() -> int:
-    QGuiApplication.setDesktopFileName("pct-file-validator.desktop")
+    QGuiApplication.setDesktopFileName("gdlex-pct-validator.desktop")
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     app.setPalette(_build_dark_palette())

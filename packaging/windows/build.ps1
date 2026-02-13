@@ -45,7 +45,7 @@ VSVersionInfo(
   --noconfirm `
   --clean `
   --windowed `
-  --name "pct-file-validator" `
+  --name "gdlex-pct-validator" `
   --icon "$stableIcon" `
   --version-file "$versionFile" `
   --collect-all PySide6 `
@@ -54,4 +54,4 @@ VSVersionInfo(
   --add-data "assets\icons;assets/icons" `
   gui/app.py
 
-Write-Host "PyInstaller build completed: dist/pct-file-validator/"
+Write-Host "PyInstaller build completed: dist/gdlex-pct-validator/"

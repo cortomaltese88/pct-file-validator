@@ -6,7 +6,7 @@
   #error MyAppIcon must be defined (generated in CI)
 #endif
 #define MyAppPublisher "Studio GD LEX"
-#define MyAppExeName "pct-file-validator.exe"
+#define MyAppExeName "gdlex-pct-validator.exe"
 
 [Setup]
 AppId={{B4EAF5A4-7B4F-4A6C-8D11-5F07F7D34986}
@@ -17,7 +17,7 @@ DefaultDirName={localappdata}\GDLEX-PCT-Validator
 DefaultGroupName=GD LEX - PCT Validator
 DisableProgramGroupPage=yes
 OutputDir={#SourcePath}\..\..\dist-installer
-OutputBaseFilename=pct-file-validator-{#MyAppVersion}-windows
+OutputBaseFilename=gdlex-pct-validator-{#MyAppVersion}-windows
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -34,7 +34,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop icon"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Files]
-Source: "{#SourcePath}\..\..\dist\pct-file-validator\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#SourcePath}\..\..\dist\gdlex-pct-validator\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\GD LEX - PCT Validator"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"

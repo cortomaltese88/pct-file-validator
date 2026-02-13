@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 STAGE_DIR="$DIST_DIR/stage"
-PKG_NAME="pct-file-validator"
+PKG_NAME="gdlex-pct-validator"
 MAINTAINER="Studio GD LEX"
 
 VERSION="${APP_VERSION:-${1:-}}"
@@ -28,9 +28,9 @@ install -d -m 755 "$APP_SRC"
 rsync -a --exclude '.git' --exclude '.venv' --exclude '__pycache__' --exclude 'dist' "$ROOT_DIR/" "$APP_SRC/"
 
 install -Dm755 "$ROOT_DIR/packaging/usr-bin/gdlex-gui" "$STAGE_DIR/usr/bin/gdlex-gui"
-install -Dm644 "$ROOT_DIR/packaging/pct-file-validator.desktop" "$STAGE_DIR/usr/share/applications/pct-file-validator.desktop"
+install -Dm644 "$ROOT_DIR/packaging/gdlex-pct-validator.desktop" "$STAGE_DIR/usr/share/applications/gdlex-pct-validator.desktop"
 for size in 16 24 32 48 64 128 256; do
-  install -Dm644 "$ICON_BUILD_DIR/hicolor/${size}x${size}/apps/pct-file-validator.png" "$STAGE_DIR/usr/share/icons/hicolor/${size}x${size}/apps/pct-file-validator.png"
+  install -Dm644 "$ICON_BUILD_DIR/hicolor/${size}x${size}/apps/gdlex-pct-validator.png" "$STAGE_DIR/usr/share/icons/hicolor/${size}x${size}/apps/gdlex-pct-validator.png"
 done
 
 SHORT_DESC="Tool interno GD LEX per analisi/correzione conservativa file PCT/PDUA"

@@ -43,7 +43,7 @@ def generate_icons(output_dir: Path) -> dict[str, Path]:
     base = _with_safe_area(Image.open(master_png))
 
     for size in PNG_SIZES:
-        out = hicolor_root / f"{size}x{size}" / "apps" / "pct-file-validator.png"
+        out = hicolor_root / f"{size}x{size}" / "apps" / "gdlex-pct-validator.png"
         out.parent.mkdir(parents=True, exist_ok=True)
         base.resize((size, size), Image.Resampling.LANCZOS).save(out, format="PNG")
 
@@ -52,7 +52,7 @@ def generate_icons(output_dir: Path) -> dict[str, Path]:
     return {
         "source_base64": MASTER_B64,
         "master_png": master_png,
-        "png_256": hicolor_root / "256x256" / "apps" / "pct-file-validator.png",
+        "png_256": hicolor_root / "256x256" / "apps" / "gdlex-pct-validator.png",
         "ico": win_ico,
     }
 

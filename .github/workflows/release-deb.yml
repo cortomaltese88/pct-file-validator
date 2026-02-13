@@ -42,11 +42,11 @@ jobs:
         env:
           APP_VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          test -f "dist/pct-file-validator_${APP_VERSION}_amd64.deb"
-          test -f "dist/icons/hicolor/256x256/apps/pct-file-validator.png"
+          test -f "dist/gdlex-pct-validator_${APP_VERSION}_amd64.deb"
+          test -f "dist/icons/hicolor/256x256/apps/gdlex-pct-validator.png"
 
       - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/pct-file-validator_${{ steps.ver.outputs.version }}_amd64.deb
+            dist/gdlex-pct-validator_${{ steps.ver.outputs.version }}_amd64.deb

@@ -41,7 +41,7 @@ jobs:
         shell: pwsh
         run: |
           if (!(Test-Path "dist/icons/app.ico")) { throw "Generated ico missing" }
-          if (!(Test-Path "dist/pct-file-validator/pct-file-validator.exe")) { throw "Bundled exe missing" }
+          if (!(Test-Path "dist/gdlex-pct-validator/gdlex-pct-validator.exe")) { throw "Bundled exe missing" }
 
       - name: Install Inno Setup
         shell: pwsh
@@ -62,14 +62,14 @@ jobs:
         env:
           APP_VERSION: ${{ steps.ver.outputs.version }}
         run: |
-          $setup = "dist-installer/pct-file-validator-$env:APP_VERSION-windows.exe"
+          $setup = "dist-installer/gdlex-pct-validator-$env:APP_VERSION-windows.exe"
           if (!(Test-Path $setup)) { throw "Missing installer: $setup" }
           $hash = (Get-FileHash $setup -Algorithm SHA256).Hash
-          "$hash  pct-file-validator-$env:APP_VERSION-windows.exe" | Out-File -FilePath "dist-installer/pct-file-validator-$env:APP_VERSION-windows.exe.sha256" -Encoding ascii
+          "$hash  gdlex-pct-validator-$env:APP_VERSION-windows.exe" | Out-File -FilePath "dist-installer/gdlex-pct-validator-$env:APP_VERSION-windows.exe.sha256" -Encoding ascii
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist-installer/pct-file-validator-${{ steps.ver.outputs.version }}-windows.exe
-            dist-installer/pct-file-validator-${{ steps.ver.outputs.version }}-windows.exe.sha256
+            dist-installer/gdlex-pct-validator-${{ steps.ver.outputs.version }}-windows.exe
+            dist-installer/gdlex-pct-validator-${{ steps.ver.outputs.version }}-windows.exe.sha256

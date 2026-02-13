@@ -401,7 +401,7 @@ class MainWindow(QMainWindow):
                 f"Versione: {self.app_version}<br>"
                 f"Build: {get_build_info()}<br><br>"
                 "Credits: Studio GD LEX<br>"
-                "Repository: github.com/studio-gdlex/pct-file-validator"
+                "Repository: github.com/studio-gdlex/gdlex-pct-validator"
             ),
         )
 
