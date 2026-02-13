@@ -400,8 +400,7 @@ class MainWindow(QMainWindow):
                 "<b>GD LEX – Verifica Deposito PCT/PDUA</b><br>"
                 f"Versione: {self.app_version}<br>"
                 f"Build: {get_build_info()}<br><br>"
-                "Credits: Studio GD LEX<br>"
-                "Repository: github.com/studio-gdlex/gdlex-pct-validator"
+                "Credits: Studio GD LEX"
             ),
         )
 
