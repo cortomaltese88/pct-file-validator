@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 from importlib.metadata import PackageNotFoundError, version as pkg_version
 
-PACKAGE_NAME = "gdlex-pct-validator"
+PRIMARY_PACKAGE = "gdlex-pct-validator"
+LEGACY_PACKAGE = "pct-file-validator"
 
 
 def _from_tag_ref(raw: str | None) -> str | None:
@@ -26,21 +29,37 @@ def _git_tag_version() -> str | None:
         return None
 
 
+def _version_from_metadata() -> str | None:
+    for package in (PRIMARY_PACKAGE, LEGACY_PACKAGE):
+        try:
+            return pkg_version(package)
+        except PackageNotFoundError:
+            continue
+    return None
+
+
+def _version_from_pyproject() -> str | None:
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    if not pyproject.exists():
+        return None
+    text = pyproject.read_text(encoding="utf-8")
+    match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    if match:
+        return match.group(1)
+    return None
+
+
 def get_app_version() -> str:
+    # Prefer the actually installed package version shown to end-users.
     return (
-        _from_tag_ref(os.getenv("APP_VERSION"))
+        _version_from_metadata()
+        or _version_from_pyproject()
+        or _from_tag_ref(os.getenv("APP_VERSION"))
         or _from_tag_ref(os.getenv("GITHUB_REF_NAME"))
         or _from_tag_ref(os.getenv("GIT_TAG"))
         or _git_tag_version()
-        or _pkg_version_fallback()
+        or "dev"
     )
-
-
-def _pkg_version_fallback() -> str:
-    try:
-        return pkg_version(PACKAGE_NAME)
-    except PackageNotFoundError:
-        return "dev"
 
 
 def get_build_info() -> str:
