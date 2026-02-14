@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Versione da pubblicare (es. 1.2.3 o v1.2.3). Se vuota, usa il tag/ref."
+        description: "Versione da pubblicare (es. 1.2.3 o v1.2.3). Obbligatoria per run manuale."
         required: false
         type: string
 
@@ -40,7 +40,13 @@ jobs:
           set -euo pipefail
 
           RAW_TAG=""
-          if [[ "$EVENT_NAME" == "release" && -n "${RELEASE_TAG:-}" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ -z "${INPUT_VERSION:-}" ]]; then
+              echo "Errore: workflow_dispatch richiede input 'version'." >&2
+              exit 1
+            fi
+            RAW_TAG="$INPUT_VERSION"
+          elif [[ "$EVENT_NAME" == "release" && -n "${RELEASE_TAG:-}" ]]; then
             RAW_TAG="$RELEASE_TAG"
           elif [[ "$REF_TYPE" == "tag" && -n "${REF_NAME:-}" ]]; then
             RAW_TAG="$REF_NAME"
@@ -51,7 +57,6 @@ jobs:
           VERSION="${RAW_TAG#v}"
           if [[ -z "$VERSION" ]]; then
             echo "Errore: impossibile risolvere la versione da release/tag/input." >&2
-            echo "Suggerimento: su workflow_dispatch imposta l'input 'version'." >&2
             exit 1
           fi
 
@@ -107,11 +112,19 @@ jobs:
           echo "deb_path=$DEB_PATH" >> "$GITHUB_OUTPUT"
           echo "Using DEB: $DEB_PATH"
 
+      - name: Preflight guard for APT repo token
+        shell: bash
+        env:
+          APT_TOKEN: ${{ secrets.GDLEX_APT_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$APT_TOKEN" || (echo "Missing secret GDLEX_APT_REPO_TOKEN" >&2; exit 1)
+
       - name: Checkout APT repository
         uses: actions/checkout@v4
         with:
           repository: cortomaltese88/gdlex-apt-repo
-          token: ${{ secrets.GDEX_APT_REPO_PAT }}
+          token: ${{ secrets.GDLEX_APT_REPO_TOKEN }}
           path: gdlex-apt-repo
 
       - name: Publish package and regenerate APT indexes
@@ -206,11 +219,19 @@ jobs:
           set -euo pipefail
           echo "apt repo sanity"
 
+      - name: Preflight guard for APT repo token
+        shell: bash
+        env:
+          APT_TOKEN: ${{ secrets.GDLEX_APT_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$APT_TOKEN" || (echo "Missing secret GDLEX_APT_REPO_TOKEN" >&2; exit 1)
+
       - name: Checkout APT repository
         uses: actions/checkout@v4
         with:
           repository: cortomaltese88/gdlex-apt-repo
-          token: ${{ secrets.GDEX_APT_REPO_PAT }}
+          token: ${{ secrets.GDLEX_APT_REPO_TOKEN }}
           path: gdlex-apt-repo
 
       - name: Show first 30 lines of Packages
