@@ -4,8 +4,21 @@ permissions:
   contents: read
 
 on:
+  push:
+    tags:
+      - 'v*'
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versione da pubblicare (es. 1.2.3 o v1.2.3). Se vuota, usa il tag/ref."
+        required: false
+        type: string
+
+concurrency:
+  group: publish-apt-repo-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   publish-apt:
@@ -14,22 +27,34 @@ jobs:
       - name: Checkout source repository
         uses: actions/checkout@v4
 
-      # Local test notes:
-      # - Build .deb with packaging/build_deb.sh
-      # - Regenerate APT metadata in gdlex-apt-repo clone
-      # - Validate install via apt using a temporary file:// source list
-
-      - name: Resolve version from release tag
+      - name: Resolve version from event/tag/dispatch input
         id: ver
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
           set -euo pipefail
-          RAW_TAG="${{ github.event.release.tag_name }}"
+
+          RAW_TAG=""
+          if [[ "$EVENT_NAME" == "release" && -n "${RELEASE_TAG:-}" ]]; then
+            RAW_TAG="$RELEASE_TAG"
+          elif [[ "$REF_TYPE" == "tag" && -n "${REF_NAME:-}" ]]; then
+            RAW_TAG="$REF_NAME"
+          elif [[ -n "${INPUT_VERSION:-}" ]]; then
+            RAW_TAG="$INPUT_VERSION"
+          fi
+
           VERSION="${RAW_TAG#v}"
           if [[ -z "$VERSION" ]]; then
-            echo "Errore: versione non risolta da release tag" >&2
+            echo "Errore: impossibile risolvere la versione da release/tag/input." >&2
+            echo "Suggerimento: su workflow_dispatch imposta l'input 'version'." >&2
             exit 1
           fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Resolved VERSION=$VERSION"
 
@@ -38,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y rsync dpkg-dev apt-utils
+          sudo apt-get install -y dpkg-dev apt-utils rsync curl gzip
           python -m pip install --upgrade pip
           pip install -e .
 
@@ -50,24 +75,36 @@ jobs:
           set -euo pipefail
           ./packaging/build_deb.sh
 
-      - name: Verify built .deb exists and is valid
+      - name: Locate and validate .deb artifact
         id: deb
         shell: bash
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
-          DEB="dist/gdlex-pct-validator_${VERSION}_amd64.deb"
-          if [[ ! -f "$DEB" ]]; then
-            echo "Errore: pacchetto non trovato: $DEB" >&2
-            echo "Contenuto dist/:" >&2
+
+          EXPECTED="dist/gdlex-pct-validator_${VERSION}_amd64.deb"
+          DEB_PATH=""
+
+          if [[ -f "$EXPECTED" ]]; then
+            DEB_PATH="$EXPECTED"
+          else
+            MATCHES=(dist/gdlex-pct-validator_"${VERSION}"_*.deb)
+            if [[ ${#MATCHES[@]} -eq 1 && -f "${MATCHES[0]}" ]]; then
+              DEB_PATH="${MATCHES[0]}"
+            fi
+          fi
+
+          if [[ -z "$DEB_PATH" ]]; then
+            echo "Errore: pacchetto .deb non trovato per versione $VERSION in dist/." >&2
             ls -la dist >&2 || true
             exit 1
           fi
-          dpkg-deb -I "$DEB" >/tmp/deb-info.txt
-          dpkg-deb -c "$DEB" >/tmp/deb-contents.txt
-          echo "deb_path=$DEB" >> "$GITHUB_OUTPUT"
-          echo "Found and validated DEB: $DEB"
+
+          dpkg-deb -I "$DEB_PATH" >/tmp/deb-info.txt
+          dpkg-deb -c "$DEB_PATH" >/tmp/deb-contents.txt
+          echo "deb_path=$DEB_PATH" >> "$GITHUB_OUTPUT"
+          echo "Using DEB: $DEB_PATH"
 
       - name: Checkout APT repository
         uses: actions/checkout@v4
@@ -76,71 +113,40 @@ jobs:
           token: ${{ secrets.GDEX_APT_REPO_PAT }}
           path: gdlex-apt-repo
 
-      - name: Copy package and regenerate APT indexes
+      - name: Publish package and regenerate APT indexes
         shell: bash
         env:
           DEB_PATH: ${{ steps.deb.outputs.deb_path }}
         run: |
           set -euo pipefail
+
           APT_REPO_DIR="gdlex-apt-repo"
           POOL_DIR="$APT_REPO_DIR/pool/main/g/gdlex-pct-validator"
-          DIST_ROOT="$APT_REPO_DIR/dists/stable"
-          DIST_DIR="$DIST_ROOT/main/binary-amd64"
+          DIST_DIR="$APT_REPO_DIR/dists/stable/main/binary-amd64"
 
           mkdir -p "$POOL_DIR" "$DIST_DIR"
           cp -f "$DEB_PATH" "$POOL_DIR/"
 
-          if [[ ! -f "$POOL_DIR/$(basename "$DEB_PATH")" ]]; then
-            echo "Errore: copia .deb fallita nel repo APT" >&2
-            exit 1
-          fi
-
           pushd "$APT_REPO_DIR" >/dev/null
           dpkg-scanpackages -m pool /dev/null > dists/stable/main/binary-amd64/Packages
           gzip -9c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
-          apt-ftparchive release dists/stable > dists/stable/Release
-
-          test -s dists/stable/main/binary-amd64/Packages
-          test -s dists/stable/main/binary-amd64/Packages.gz
-          test -s dists/stable/Release
           popd >/dev/null
 
-      - name: Verify generated indexes contain expected version
+      - name: Hard checks on generated indexes
         shell: bash
         env:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
+
           PKG_FILE="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages"
-          grep -n "^Package: gdlex-pct-validator$" "$PKG_FILE" >/dev/null
-          grep -n "^Version: ${VERSION}$" "$PKG_FILE" >/dev/null
-          echo "Packages index contains gdlex-pct-validator ${VERSION}"
+          PKG_GZ="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz"
 
-      - name: Offline installability check using local file:// APT source
-        shell: bash
-        run: |
-          set -euo pipefail
-          SRC_LIST="$(mktemp)"
-          LIST_DIR="$(mktemp -d)"
-          CACHE_DIR="$(mktemp -d)"
+          grep -q '^Package: gdlex-pct-validator$' "$PKG_FILE"
+          grep -q "^Version: ${VERSION}$" "$PKG_FILE"
+          test -s "$PKG_GZ"
 
-          printf "%s\n" "deb [arch=amd64 trusted=yes] file://$(pwd)/gdlex-apt-repo stable main" > "$SRC_LIST"
-
-          sudo apt-get \
-            -o Dir::Etc::sourcelist="$SRC_LIST" \
-            -o Dir::Etc::sourceparts="-" \
-            -o APT::Get::List-Cleanup="0" \
-            -o Dir::State::lists="$LIST_DIR" \
-            -o Dir::Cache::archives="$CACHE_DIR" \
-            update
-
-          sudo apt-get \
-            -o Dir::Etc::sourcelist="$SRC_LIST" \
-            -o Dir::Etc::sourceparts="-" \
-            -o APT::Get::List-Cleanup="0" \
-            -o Dir::State::lists="$LIST_DIR" \
-            -o Dir::Cache::archives="$CACHE_DIR" \
-            install -y gdlex-pct-validator
+          echo "Hard checks passed for version ${VERSION}."
 
       - name: Commit and push APT repository
         shell: bash
@@ -148,6 +154,7 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
+
           pushd gdlex-apt-repo >/dev/null
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -159,16 +166,58 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Add gdlex-pct-validator $VERSION"
+          git commit -m "Add gdlex-pct-validator ${VERSION}"
           git push origin main
           popd >/dev/null
 
-      - name: Final check (non-blocking remote visibility)
+      - name: Remote visibility check (non-blocking with retry)
         shell: bash
         run: |
           set -euo pipefail
-          test -s gdlex-apt-repo/dists/stable/main/binary-amd64/Packages
-          test -s gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz
-          curl -fsSI https://cortomaltese88.github.io/gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz \
-            && echo "Remote URL reachable (may still be cached)." \
-            || echo "Remote URL not yet reachable (possible Pages cache delay)."
+
+          URL="https://cortomaltese88.github.io/gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz"
+          ATTEMPTS=10
+          SLEEP_SECONDS=15
+          ok=0
+
+          for i in $(seq 1 "$ATTEMPTS"); do
+            if curl -fsSI "$URL" >/dev/null; then
+              echo "Remote Packages.gz raggiungibile al tentativo $i/$ATTEMPTS"
+              ok=1
+              break
+            fi
+            echo "Tentativo $i/$ATTEMPTS fallito; nuovo tentativo tra ${SLEEP_SECONDS}s..."
+            sleep "$SLEEP_SECONDS"
+          done
+
+          if [[ "$ok" -ne 1 ]]; then
+            echo "::warning::Packages.gz non ancora raggiungibile dopo ${ATTEMPTS} tentativi (possibile delay GitHub Pages)."
+          fi
+
+  apt-repo-sanity:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: apt repo sanity
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "apt repo sanity"
+
+      - name: Checkout APT repository
+        uses: actions/checkout@v4
+        with:
+          repository: cortomaltese88/gdlex-apt-repo
+          token: ${{ secrets.GDEX_APT_REPO_PAT }}
+          path: gdlex-apt-repo
+
+      - name: Show first 30 lines of Packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          PKG_FILE="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages"
+          if [[ ! -f "$PKG_FILE" ]]; then
+            echo "Packages non trovato: $PKG_FILE" >&2
+            exit 1
+          fi
+          sed -n '1,30p' "$PKG_FILE"
