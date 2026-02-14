@@ -1,0 +1,76 @@
+name: release-windows
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from git tag
+        id: ver
+        shell: pwsh
+        run: |
+          $version = "$env:GITHUB_REF_NAME".TrimStart('v')
+          if (-not $version) { throw "Tag version missing" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+
+      - name: Build app bundle
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          ./packaging/windows/build.ps1
+
+      - name: Check generated icon and bundle
+        shell: pwsh
+        run: |
+          if (!(Test-Path "dist/icons/app.ico")) { throw "Generated ico missing" }
+          if (!(Test-Path "dist/gdlex-pct-validator/gdlex-pct-validator.exe")) { throw "Bundled exe missing" }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y
+
+      - name: Build versioned installer
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          $iss = (Resolve-Path "packaging/windows/installer.iss").Path
+          $icon = (Resolve-Path "dist/icons/app.ico").Path
+          & $iscc "/DMyAppVersion=$env:APP_VERSION" "/DMyAppIcon=$icon" $iss
+
+      - name: Generate checksum
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          $setup = "dist-installer/gdlex-pct-validator-$env:APP_VERSION-windows.exe"
+          if (!(Test-Path $setup)) { throw "Missing installer: $setup" }
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash
+          "$hash  gdlex-pct-validator-$env:APP_VERSION-windows.exe" | Out-File -FilePath "dist-installer/gdlex-pct-validator-$env:APP_VERSION-windows.exe.sha256" -Encoding ascii
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-installer/gdlex-pct-validator-${{ steps.ver.outputs.version }}-windows.exe
+            dist-installer/gdlex-pct-validator-${{ steps.ver.outputs.version }}-windows.exe.sha256
