@@ -6,9 +6,6 @@ permissions:
 on:
   release:
     types: [published]
-  push:
-    tags:
-      - 'v*'
 
 jobs:
   publish-apt:
@@ -17,19 +14,20 @@ jobs:
       - name: Checkout source repository
         uses: actions/checkout@v4
 
-      - name: Resolve version from tag/release
+      # Local test notes:
+      # - Build .deb with packaging/build_deb.sh
+      # - Regenerate APT metadata in gdlex-apt-repo clone
+      # - Validate install via apt using a temporary file:// source list
+
+      - name: Resolve version from release tag
         id: ver
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
-            RAW_TAG="${{ github.event.release.tag_name }}"
-          else
-            RAW_TAG="${GITHUB_REF_NAME}"
-          fi
+          RAW_TAG="${{ github.event.release.tag_name }}"
           VERSION="${RAW_TAG#v}"
           if [[ -z "$VERSION" ]]; then
-            echo "Errore: versione non risolta da tag/release" >&2
+            echo "Errore: versione non risolta da release tag" >&2
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -40,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y rsync dpkg-dev
+          sudo apt-get install -y rsync dpkg-dev apt-utils
           python -m pip install --upgrade pip
           pip install -e .
 
@@ -52,7 +50,7 @@ jobs:
           set -euo pipefail
           ./packaging/build_deb.sh
 
-      - name: Verify built .deb exists
+      - name: Verify built .deb exists and is valid
         id: deb
         shell: bash
         env:
@@ -66,8 +64,10 @@ jobs:
             ls -la dist >&2 || true
             exit 1
           fi
+          dpkg-deb -I "$DEB" >/tmp/deb-info.txt
+          dpkg-deb -c "$DEB" >/tmp/deb-contents.txt
           echo "deb_path=$DEB" >> "$GITHUB_OUTPUT"
-          echo "Found DEB: $DEB"
+          echo "Found and validated DEB: $DEB"
 
       - name: Checkout APT repository
         uses: actions/checkout@v4
@@ -84,7 +84,8 @@ jobs:
           set -euo pipefail
           APT_REPO_DIR="gdlex-apt-repo"
           POOL_DIR="$APT_REPO_DIR/pool/main/g/gdlex-pct-validator"
-          DIST_DIR="$APT_REPO_DIR/dists/stable/main/binary-amd64"
+          DIST_ROOT="$APT_REPO_DIR/dists/stable"
+          DIST_DIR="$DIST_ROOT/main/binary-amd64"
 
           mkdir -p "$POOL_DIR" "$DIST_DIR"
           cp -f "$DEB_PATH" "$POOL_DIR/"
@@ -97,43 +98,49 @@ jobs:
           pushd "$APT_REPO_DIR" >/dev/null
           dpkg-scanpackages -m pool /dev/null > dists/stable/main/binary-amd64/Packages
           gzip -9c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
+          apt-ftparchive release dists/stable > dists/stable/Release
 
-          if [[ ! -s dists/stable/main/binary-amd64/Packages ]]; then
-            echo "Errore: Packages non generato o vuoto" >&2
-            exit 1
-          fi
-          if [[ ! -s dists/stable/main/binary-amd64/Packages.gz ]]; then
-            echo "Errore: Packages.gz non generato o vuoto" >&2
-            exit 1
-          fi
-
-          if [[ ! -f README.md ]]; then
-            cat > README.md <<'EOF'
-# GD LEX APT Repository
-
-Repository APT pubblico per `gdlex-pct-validator` (GitHub Pages).
-
-## Configurazione client (amd64)
-
-```bash
-sudo tee /etc/apt/sources.list.d/gdlex.list >/dev/null <<'SRC'
-deb [arch=amd64 trusted=yes] https://cortomaltese88.github.io/gdlex-apt-repo stable main
-SRC
-
-sudo apt update
-sudo apt install gdlex-pct-validator
-```
-
-Per aggiornare:
-
-```bash
-sudo apt upgrade
-```
-
-Nota: `arch=amd64` evita warning per architetture non supportate (es. i386).
-EOF
-          fi
+          test -s dists/stable/main/binary-amd64/Packages
+          test -s dists/stable/main/binary-amd64/Packages.gz
+          test -s dists/stable/Release
           popd >/dev/null
+
+      - name: Verify generated indexes contain expected version
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          PKG_FILE="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages"
+          grep -n "^Package: gdlex-pct-validator$" "$PKG_FILE" >/dev/null
+          grep -n "^Version: ${VERSION}$" "$PKG_FILE" >/dev/null
+          echo "Packages index contains gdlex-pct-validator ${VERSION}"
+
+      - name: Offline installability check using local file:// APT source
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC_LIST="$(mktemp)"
+          LIST_DIR="$(mktemp -d)"
+          CACHE_DIR="$(mktemp -d)"
+
+          printf "%s\n" "deb [arch=amd64 trusted=yes] file://$(pwd)/gdlex-apt-repo stable main" > "$SRC_LIST"
+
+          sudo apt-get \
+            -o Dir::Etc::sourcelist="$SRC_LIST" \
+            -o Dir::Etc::sourceparts="-" \
+            -o APT::Get::List-Cleanup="0" \
+            -o Dir::State::lists="$LIST_DIR" \
+            -o Dir::Cache::archives="$CACHE_DIR" \
+            update
+
+          sudo apt-get \
+            -o Dir::Etc::sourcelist="$SRC_LIST" \
+            -o Dir::Etc::sourceparts="-" \
+            -o APT::Get::List-Cleanup="0" \
+            -o Dir::State::lists="$LIST_DIR" \
+            -o Dir::Cache::archives="$CACHE_DIR" \
+            install -y gdlex-pct-validator
 
       - name: Commit and push APT repository
         shell: bash
@@ -145,7 +152,7 @@ EOF
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add pool dists README.md
+          git add pool dists
           if git diff --cached --quiet; then
             echo "Nessuna modifica da pubblicare nel repo APT."
             popd >/dev/null
