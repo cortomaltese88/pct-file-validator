@@ -211,3 +211,9 @@ __marimo__/
 dist-installer/
 dist/icons/
 dist/windows-version.txt
+
+# Local build artifacts
+Release/
+build/
+dist/
+
