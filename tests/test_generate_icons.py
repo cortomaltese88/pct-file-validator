@@ -14,7 +14,6 @@ generate_icons = module.generate_icons
 
 def test_generate_icons_outputs_files(tmp_path: Path):
     generated = generate_icons(tmp_path)
-    assert generated["source_base64"].exists()
-    assert generated["master_png"].exists()
+    assert generated["source_png"].exists()
     assert generated["png_256"].exists()
     assert generated["ico"].exists()
