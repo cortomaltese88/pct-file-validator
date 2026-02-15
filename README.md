@@ -1,4 +1,19 @@
-# GDLEX PCT File Validator
+<p align="center">
+  <img src="assets/icon.png" width="180" alt="GDLEX PCT File Validator icon">
+</p>
+
+<h1 align="center">GDLEX PCT File Validator</h1>
+
+<p align="center">
+  <em>Pre-deposit validator for Italian PCT/PDUA telematic filings (GUI + CLI)</em>
+</p>
+
+<p align="center">
+  Developed by <strong>STUDIO GD LEX – Marco Gianese</strong>
+</p>
+
+---
+
 
 Tool desktop (GUI + CLI) per analisi e correzione conservativa dei file
 destinati al deposito telematico PCT / PDUA.
