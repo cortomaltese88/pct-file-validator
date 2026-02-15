@@ -1,69 +1,136 @@
-# GD LEX – Verifica Deposito PCT/PDUA
+# GDLEX PCT File Validator
 
-![Latest Release](https://img.shields.io/github/v/release/studio-gdlex/gdlex-pct-validator?display_name=release)
+Tool desktop (GUI + CLI) per analisi e correzione conservativa dei file
+destinati al deposito telematico PCT / PDUA.
 
-Tool desktop (GUI + CLI) per analisi/correzione conservativa dei file per deposito telematico.
+> Progetto indipendente sviluppato da Marco Gianese -- STUDIO GD LEX\
+> Non affiliato al Ministero della Giustizia o ad altri enti pubblici.
+
+------------------------------------------------------------------------
 
 ## Download
 
-Dalla pagina Releases:
-- **Windows**: `gdlex-pct-validator-<version>-windows.exe`
-- **Debian/Ubuntu**: `gdlex-pct-validator_<version>_amd64.deb`
-- **Checksum**: file `.sha256` allegati
+Dalla pagina **Releases** del repository:
 
-## Installazione rapida
+-   **Windows**: `gdlex-pct-validator-<version>-windows.exe`
+-   **Debian/Ubuntu**: `gdlex-pct-validator_<version>_amd64.deb`
+-   **Checksum**: file `.sha256` allegati
+
+------------------------------------------------------------------------
+
+## Installazione
 
 ### Windows
-1. Scarica `gdlex-pct-validator-<version>-windows.exe`
-2. Esegui il setup per-user
-3. Avvia dal menu Start
 
-> SmartScreen/AV può mostrare warning sugli eseguibili non firmati.
+1.  Scaricare l'eseguibile `.exe`
+2.  Avviare il setup per-user
+3.  Eseguire dal menu Start
+
+> Windows SmartScreen può mostrare un avviso sugli eseguibili non
+> firmati.
+
+------------------------------------------------------------------------
 
 ### Debian / Ubuntu
 
-```bash
+Installazione manuale:
+
+``` bash
 sudo dpkg -i gdlex-pct-validator_<version>_amd64.deb
 sudo apt -f install
 ```
 
-## Uso
+Oppure tramite repository APT GDLEX (se configurato):
 
-```bash
+``` bash
+sudo apt update
+sudo apt install gdlex-pct-validator
+```
+
+------------------------------------------------------------------------
+
+## Utilizzo
+
+Avvio GUI:
+
+``` bash
 gdlex-gui
+```
+
+Verifica versione:
+
+``` bash
 gdlex-check --version
 ```
 
-## Icon & Release System
+------------------------------------------------------------------------
 
-Il sistema di release è hardenizzato e deterministico:
+## Architettura Release
 
-- **Single source icona**: `assets/icons/master.base64` (payload testuale nel repository).
-- **Generazione automatica**: `tools/generate_icons.py` ricostruisce `master.png` in `dist/icons/` e genera PNG Linux (`256,128,64,48,32,24,16`) + ICO Windows multi-size (`dist/icons/app.ico`).
-- **Nessun `.ico` manuale**: i binari icona vengono prodotti solo in CI/build (`dist/icons/...`) e non sono versionati in git.
-- **Single source versione**: la versione deriva **solo dal tag Git** (`GITHUB_REF_NAME`/`APP_VERSION`).
-- **Artifact versionati obbligatori**:
-  - `gdlex-pct-validator_<version>_amd64.deb`
-  - `gdlex-pct-validator-<version>-windows.exe`
-- **No passi manuali**: workflow GitHub Actions estrae versione, genera icone, builda pacchetti e pubblica asset.
+Sistema di build automatizzato tramite GitHub Actions:
+
+-   Versione derivata esclusivamente dal tag Git
+-   Generazione automatica icone
+-   Build deterministica dei pacchetti
+-   Pubblicazione asset in Release
+-   Aggiornamento repository APT via workflow dedicato
+
+Nessun artefatto binario è versionato nel repository.
+
+------------------------------------------------------------------------
 
 ## Sviluppo locale
 
-```bash
+``` bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
 pytest -q
 ```
 
+------------------------------------------------------------------------
 
 ## Qualità codice
 
-Comando consigliato locale:
-
-```bash
+``` bash
 ruff check core cli gui tests tools
 python -m pytest -q
 ```
 
-La quality gate (`ruff` + `pytest`) gira nel workflow CI su PR; i workflow release restano focalizzati sul packaging.
+La quality gate gira nel workflow CI su Pull Request.
+
+------------------------------------------------------------------------
+
+## Licenza
+
+© 2026 Marco Gianese -- STUDIO GD LEX
+
+Rilasciato sotto **GDLEX Non-Commercial License**.
+
+È consentito:
+
+-   uso personale
+-   uso professionale interno
+-   modifica del codice
+
+Non è consentito:
+
+-   utilizzo commerciale
+-   rivendita
+-   integrazione in prodotti o servizi commerciali
+-   redistribuzione a fini di lucro
+
+Per i dettagli completi consultare il file `LICENSE`.
+
+------------------------------------------------------------------------
+
+## Disclaimer
+
+Il software è fornito "as is", senza alcuna garanzia espressa o
+implicita.
+
+L'utente è responsabile della verifica finale dei file prima del
+deposito telematico.
+
+Lo sviluppatore non risponde di eventuali errori, rifiuti di deposito o
+conseguenze derivanti dall'utilizzo del software.
