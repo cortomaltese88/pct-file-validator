@@ -16,6 +16,13 @@ jobs:
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Guard manual dispatch to tag refs only
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        shell: pwsh
+        run: |
+          if ("$env:GITHUB_REF_TYPE" -ne "tag") {
+            throw "workflow_dispatch is allowed only on tag refs to preserve tag-driven versioning."
+          }
 
       - name: Extract version from git tag
         id: ver
