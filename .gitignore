@@ -213,6 +213,7 @@ dist/icons/
 dist/windows-version.txt
 
 # Local build artifacts
+Release
 Release/
 build/
 dist/
