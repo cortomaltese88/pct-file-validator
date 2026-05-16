@@ -23,6 +23,7 @@ SolidCompression=yes
 WizardStyle=modern
 SetupIconFile={#MyAppIcon}
 UninstallDisplayIcon={app}\{#MyAppExeName}
+LicenseFile={#SourcePath}\..\..\dist\gdlex-pct-validator\LICENSE
 ArchitecturesInstallIn64BitMode=x64
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline

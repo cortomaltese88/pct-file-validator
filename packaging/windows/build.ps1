@@ -71,6 +71,14 @@ VSVersionInfo(
     --add-data "assets\icons;assets/icons" `
     gui/app.py
 
+  $bundleDir = Join-Path $root "dist/gdlex-pct-validator"
+  $docsToBundle = @("LICENSE", "THIRD_PARTY_LICENSES.md", "README.md")
+  foreach ($doc in $docsToBundle) {
+    $sourcePath = Join-Path $root $doc
+    if (-not (Test-Path $sourcePath)) { throw "Required documentation file missing: $sourcePath" }
+    Copy-Item $sourcePath (Join-Path $bundleDir $doc) -Force
+  }
+
   Write-Host "PyInstaller build completed: dist/gdlex-pct-validator/"
 }
 finally {
