@@ -53,6 +53,13 @@ jobs:
           if (!(Test-Path "dist/gdlex-pct-validator/LICENSE")) { throw "Bundled LICENSE missing" }
           if (!(Test-Path "dist/gdlex-pct-validator/THIRD_PARTY_LICENSES.md")) { throw "Bundled THIRD_PARTY_LICENSES.md missing" }
           if (!(Test-Path "dist/gdlex-pct-validator/README.md")) { throw "Bundled README.md missing" }
+          if (!(Test-Path "dist/gdlex-pct-validator/licenses")) { throw "Bundled licenses directory missing" }
+          $licenseFiles = Get-ChildItem "dist/gdlex-pct-validator/licenses" -File -ErrorAction Stop
+          if ($licenseFiles.Count -lt 1) { throw "Bundled licenses directory is empty" }
+          if (!($licenseFiles | Where-Object { $_.Name -match 'PySide6|Qt' })) { throw "No PySide6/Qt-related license artifacts found" }
+          if (!(($licenseFiles | Where-Object { $_.Name -match 'shiboken6' }) -or (Test-Path "dist/gdlex-pct-validator/licenses/README-licenses.txt"))) {
+            throw "No shiboken6-related artifact or README-licenses.txt found"
+          }
 
       - name: Install Inno Setup
         shell: pwsh

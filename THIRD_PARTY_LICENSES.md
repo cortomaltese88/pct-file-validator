@@ -27,6 +27,10 @@ Le componenti di terze parti mantengono le rispettive licenze.
 - Le dipendenze di terze parti mantengono le rispettive licenze.
 - Su Windows il bundle PyInstaller può includere materialmente
   `PySide6` e `shiboken6` e richiede notices/licenze adeguate.
+- Nel bundle Windows, i notices/licenze reperibili dai pacchetti
+  `PySide6` e `shiboken6` presenti nell'ambiente di build vengono raccolti
+  nella cartella `licenses/`; questa raccolta integra, ma non sostituisce,
+  i termini ufficiali dei rispettivi progetti.
 - La licenza del software non concede diritti d'uso su nome, logo,
   marchio o identità visiva **STUDIO GD LEX** / **GD LEX**.
 - Prima di pubblicare nuove release binarie occorre verificare che

@@ -1,5 +1,105 @@
 $ErrorActionPreference = "Stop"
 
+function Get-LicenseArtifactRoots {
+  param(
+    [string[]]$SitePackages,
+    [string]$PackageName
+  )
+
+  $roots = New-Object System.Collections.Generic.List[string]
+  foreach ($sitePath in $SitePackages) {
+    if (-not (Test-Path $sitePath)) { continue }
+
+    $packageDir = Join-Path $sitePath $PackageName
+    if (Test-Path $packageDir) {
+      $roots.Add((Resolve-Path $packageDir).Path)
+    }
+
+    foreach ($pattern in @("$PackageName*.dist-info", "$PackageName*.egg-info")) {
+      Get-ChildItem -Path $sitePath -Directory -Filter $pattern -ErrorAction SilentlyContinue | ForEach-Object {
+        $roots.Add($_.FullName)
+      }
+    }
+  }
+
+  $roots | Select-Object -Unique
+}
+
+function Copy-LicenseArtifacts {
+  param(
+    [string[]]$SitePackages,
+    [string]$PackageName,
+    [string]$DestinationDir,
+    [switch]$Required
+  )
+
+  $roots = @(Get-LicenseArtifactRoots -SitePackages $SitePackages -PackageName $PackageName)
+  if ($roots.Count -eq 0) {
+    if ($Required) { throw "Required package roots not found for $PackageName in build environment." }
+    Write-Warning "Package roots not found for $PackageName; skipping explicit license artifact collection."
+    return 0
+  }
+
+  $patterns = @(
+    '^LICENSE([._ -].*)?$',
+    '^COPYING([._ -].*)?$',
+    '^NOTICE([._ -].*)?$',
+    'LGPL',
+    'GPL',
+    '^PKG-INFO$',
+    '^METADATA$'
+  )
+  $textExtensions = @('.txt', '.md', '.rst', '.html')
+  $matched = New-Object System.Collections.Generic.List[string]
+
+  foreach ($root in $roots) {
+    Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+      $leaf = $_.Name
+      $extension = $_.Extension.ToLowerInvariant()
+      $isMatch = $false
+
+      foreach ($pattern in $patterns) {
+        if ($leaf -match $pattern) {
+          $isMatch = $true
+          break
+        }
+      }
+
+      if (-not $isMatch -and $leaf -match 'Qt' -and $textExtensions -contains $extension) {
+        $isMatch = $true
+      }
+
+      if ($isMatch) {
+        $matched.Add($_.FullName)
+      }
+    }
+  }
+
+  $copiedCount = 0
+  foreach ($sourcePath in ($matched | Sort-Object -Unique)) {
+    $rootForRelative = $roots | Where-Object { $sourcePath.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) } | Sort-Object Length -Descending | Select-Object -First 1
+    $relative = if ($rootForRelative) {
+      $sourcePath.Substring($rootForRelative.Length).TrimStart('\')
+    } else {
+      Split-Path $sourcePath -Leaf
+    }
+    $safeRelative = ($relative -replace '[\\/:*?"<>| ]', '_')
+    $destinationName = "{0}_{1}" -f $PackageName, $safeRelative
+    Copy-Item $sourcePath (Join-Path $DestinationDir $destinationName) -Force
+    $copiedCount += 1
+  }
+
+  if ($Required -and $copiedCount -eq 0) {
+    throw "No license or metadata artifacts found for required package $PackageName."
+  }
+
+  if (-not $Required -and $copiedCount -eq 0) {
+    Write-Warning "No license or metadata artifacts found for optional package $PackageName."
+  }
+
+  return $copiedCount
+}
+
 $root = Resolve-Path (Join-Path $PSScriptRoot "../..")
 Set-Location $root
 
@@ -78,6 +178,36 @@ VSVersionInfo(
     if (-not (Test-Path $sourcePath)) { throw "Required documentation file missing: $sourcePath" }
     Copy-Item $sourcePath (Join-Path $bundleDir $doc) -Force
   }
+
+  $sitePackages = @(
+    (& $py -c "import sysconfig; print(sysconfig.get_paths()['purelib']); print(sysconfig.get_paths()['platlib'])")
+  ) | Where-Object { $_ -and $_.Trim() -ne "" } | ForEach-Object { $_.Trim() } | Select-Object -Unique
+
+  $licensesDir = Join-Path $bundleDir "licenses"
+  New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
+
+  $licenseSummary = Join-Path $licensesDir "README-licenses.txt"
+  @"
+This directory contains license notices and metadata collected from the Python
+packages present in the Windows build environment for gdlex-pct-validator.
+
+The collected files are provided to improve traceability for bundled runtime
+dependencies such as PySide6 and shiboken6. They complement, and do not replace,
+the official license terms and notices published by the respective upstream
+projects.
+"@ | Out-File -FilePath $licenseSummary -Encoding utf8
+
+  $copiedArtifacts = [ordered]@{}
+  $copiedArtifacts["PySide6"] = Copy-LicenseArtifacts -SitePackages $sitePackages -PackageName "PySide6" -DestinationDir $licensesDir -Required
+  $copiedArtifacts["shiboken6"] = Copy-LicenseArtifacts -SitePackages $sitePackages -PackageName "shiboken6" -DestinationDir $licensesDir
+  $copiedArtifacts["PySide6_Addons"] = Copy-LicenseArtifacts -SitePackages $sitePackages -PackageName "PySide6_Addons" -DestinationDir $licensesDir
+  $copiedArtifacts["PySide6_Essentials"] = Copy-LicenseArtifacts -SitePackages $sitePackages -PackageName "PySide6_Essentials" -DestinationDir $licensesDir
+
+  $summaryLines = @(
+    "Collected artifact counts:"
+  ) + ($copiedArtifacts.GetEnumerator() | ForEach-Object { "{0}: {1}" -f $_.Key, $_.Value })
+  Add-Content -Path $licenseSummary -Value ""
+  Add-Content -Path $licenseSummary -Value $summaryLines
 
   Write-Host "PyInstaller build completed: dist/gdlex-pct-validator/"
 }
