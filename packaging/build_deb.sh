@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 STAGE_DIR="$DIST_DIR/stage"
 PKG_NAME="gdlex-pct-validator"
-MAINTAINER="Studio GD LEX"
+MAINTAINER="Studio GD LEX <info@studiogdlex.it>"
 
 VERSION="${APP_VERSION:-${1:-}}"
 if [[ -z "$VERSION" ]]; then
@@ -15,7 +15,7 @@ fi
 VERSION="${VERSION#v}"
 
 ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
-APP_PREFIX="$STAGE_DIR/opt/gdlex-pct-validator"
+APP_PREFIX="$STAGE_DIR/usr/lib/gdlex-pct-validator"
 APP_SRC="$APP_PREFIX/app"
 DOC_DIR="$STAGE_DIR/usr/share/doc/$PKG_NAME"
 
@@ -125,6 +125,23 @@ done
 install_doc "README.md"
 install_doc "LICENSE"
 install_doc "THIRD_PARTY_LICENSES.md"
+gzip -9n -c "$ROOT_DIR/debian/changelog" > "$DOC_DIR/changelog.gz"
+cat > "$DOC_DIR/copyright" <<'EOF'
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: gdlex-pct-validator
+Source: https://github.com/cortomaltese88/pct-file-validator
+
+Files: *
+Copyright: 2026 Studio GD LEX
+License: GPL-3.0-or-later
+ This package is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
+ .
+ On Debian systems, the full text of the GNU General Public License
+ version 3 can be found in /usr/share/common-licenses/GPL-3.
+EOF
 
 install -Dm755 "$ROOT_DIR/packaging/usr-bin/gdlex-gui" "$STAGE_DIR/usr/bin/gdlex-gui"
 install -Dm644 "$ROOT_DIR/packaging/gdlex-pct-validator.desktop" "$STAGE_DIR/usr/share/applications/gdlex-pct-validator.desktop"
@@ -150,9 +167,9 @@ Description: $SHORT_DESC
 EOF
 
 cat > "$CONTROL_DIR/postinst" <<'POST'
-#!/usr/bin/env bash
+#!/bin/bash
 set -e
-APP_ROOT="/opt/gdlex-pct-validator"
+APP_ROOT="/usr/lib/gdlex-pct-validator"
 VENV_DIR="$APP_ROOT/venv"
 APP_DIR="$APP_ROOT/app"
 VENV_PY="$VENV_DIR/bin/python"
@@ -173,6 +190,11 @@ POST
 chmod 755 "$CONTROL_DIR/postinst"
 
 DEB_PATH="$DIST_DIR/${PKG_NAME}_${VERSION}_${ARCH}.deb"
-dpkg-deb --build "$STAGE_DIR" "$DEB_PATH"
+find "$STAGE_DIR" -type d -exec chmod 755 {} +
+find "$STAGE_DIR" -type f -exec chmod 644 {} +
+chmod 755 "$STAGE_DIR/usr/bin/gdlex-gui"
+chmod 755 "$CONTROL_DIR/postinst"
+chown -R root:root "$STAGE_DIR" 2>/dev/null || true
+dpkg-deb --root-owner-group --build "$STAGE_DIR" "$DEB_PATH"
 
 echo "Pacchetto creato: $DEB_PATH"

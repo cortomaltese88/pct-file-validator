@@ -1,5 +1,5 @@
-gdlex-pct-validator (1.1.8-1) unstable; urgency=medium
+gdlex-pct-validator (1.2.0-1) unstable; urgency=medium
 
-  * Standardize release naming to gdlex-pct-validator.
+  * Prepare release v1.2.0.
 
- -- Studio GD LEX <noreply@gdlex.local>  Fri, 13 Feb 2026 17:00:00 +0000
+ -- Studio GD LEX <info@studiogdlex.it>  Sat, 16 May 2026 12:00:00 +0000
