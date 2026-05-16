@@ -120,25 +120,16 @@ La quality gate gira nel workflow CI su Pull Request.
 
 © 2026 Marco Gianese -- STUDIO GD LEX
 
-Rilasciato sotto **GDLEX Non-Commercial License**.
+Il codice del progetto è distribuito sotto **GPL-3.0-or-later**.
+Il testo completo della licenza è disponibile nel file `LICENSE`.
 
-È consentito:
+Il software è fornito "as is", senza garanzie espresse o implicite.
+L'utente resta responsabile della verifica dei risultati prodotti e del
+controllo finale prima del deposito telematico. Il software non
+sostituisce il controllo professionale dell'utente.
 
--   uso personale
--   uso professionale interno
--   modifica del codice
-
-Non è consentito:
-
--   utilizzo commerciale
--   rivendita
--   integrazione in prodotti o servizi commerciali
--   redistribuzione a fini di lucro
-
-Per i dettagli completi consultare il file `LICENSE`.
-
-Per una ricognizione delle dipendenze e dei relativi riferimenti di
-licenza consultare `THIRD_PARTY_LICENSES.md`.
+Le dipendenze di terze parti mantengono le rispettive licenze; per un
+riepilogo operativo consultare `THIRD_PARTY_LICENSES.md`.
 
 ## Licenze terze parti e marchio
 
@@ -146,9 +137,10 @@ Le dipendenze software di terze parti mantengono le rispettive licenze.
 Per un riepilogo operativo e per le verifiche ancora aperte consultare
 `THIRD_PARTY_LICENSES.md`.
 
-Il nome, il logo, il marchio e l'identità visiva **STUDIO GD LEX** /
-**GD LEX** restano distinti dalla licenza del software e non sono
-concessi in uso salvo autorizzazione separata.
+La GPL applicata al codice non concede diritti d'uso su nome, logo,
+marchio o identità visiva **STUDIO GD LEX** / **GD LEX**, che restano
+distinti dalla licenza del software e non sono concessi in uso salvo
+autorizzazione separata.
 
 Eventuali fork, redistribuzioni o versioni modificate non possono essere
 presentati come versioni ufficiali, approvate o affiliate a STUDIO GD
@@ -162,7 +154,8 @@ Il software è fornito "as is", senza alcuna garanzia espressa o
 implicita.
 
 L'utente è responsabile della verifica finale dei file prima del
-deposito telematico.
+deposito telematico e il software non sostituisce il controllo
+professionale dell'utente.
 
 Lo sviluppatore non risponde di eventuali errori, rifiuti di deposito o
 conseguenze derivanti dall'utilizzo del software.

@@ -7,8 +7,12 @@ name = "gdlex-pct-validator"
 dynamic = ["version"]
 description = "Validator e sanitizzatore conservativo per deposito telematico PCT/PDUA"
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.11"
 authors = [{ name = "GD LEX" }]
+classifiers = [
+  "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+]
 dependencies = [
   "PySide6>=6.6",
 ]

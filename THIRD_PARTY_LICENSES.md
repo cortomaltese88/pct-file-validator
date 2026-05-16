@@ -3,7 +3,8 @@
 Documento preparatorio di ricognizione licenze per dipendenze, bundle e
 asset collegati a `pct-file-validator`.
 
-La licenza principale del progetto resta quella descritta in `LICENSE`.
+Il progetto adotta la licenza **GPL-3.0-or-later**; il testo completo è
+riportato nel file `LICENSE`.
 Le componenti di terze parti mantengono le rispettive licenze.
 
 | Componente | Uso nel progetto | Incluso nel pacchetto? | Licenza verificata localmente | Note |
