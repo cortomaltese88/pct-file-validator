@@ -7,8 +7,6 @@ on:
   push:
     tags:
       - 'v*'
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       version:
@@ -32,7 +30,6 @@ jobs:
         shell: bash
         env:
           EVENT_NAME: ${{ github.event_name }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
           REF_NAME: ${{ github.ref_name }}
           REF_TYPE: ${{ github.ref_type }}
           INPUT_VERSION: ${{ github.event.inputs.version }}
@@ -46,8 +43,6 @@ jobs:
               exit 1
             fi
             RAW_TAG="$INPUT_VERSION"
-          elif [[ "$EVENT_NAME" == "release" && -n "${RELEASE_TAG:-}" ]]; then
-            RAW_TAG="$RELEASE_TAG"
           elif [[ "$REF_TYPE" == "tag" && -n "${REF_NAME:-}" ]]; then
             RAW_TAG="$REF_NAME"
           elif [[ -n "${INPUT_VERSION:-}" ]]; then
@@ -131,20 +126,35 @@ jobs:
         shell: bash
         env:
           DEB_PATH: ${{ steps.deb.outputs.deb_path }}
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
 
           APT_REPO_DIR="gdlex-apt-repo"
           POOL_DIR="$APT_REPO_DIR/pool/main/g/gdlex-pct-validator"
           DIST_DIR="$APT_REPO_DIR/dists/stable/main/binary-amd64"
+          RELEASE_FILE="$APT_REPO_DIR/dists/stable/Release"
+          DEB_NAME="gdlex-pct-validator_${VERSION}_amd64.deb"
+          APT_CONF="$APT_REPO_DIR/apt-ftparchive.conf"
 
           mkdir -p "$POOL_DIR" "$DIST_DIR"
           cp -f "$DEB_PATH" "$POOL_DIR/"
 
           pushd "$APT_REPO_DIR" >/dev/null
-          dpkg-scanpackages -m pool /dev/null > dists/stable/main/binary-amd64/Packages
-          gzip -9c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
+          rm -f dists/stable/main/binary-amd64/Packages.gz
+          apt-ftparchive packages pool > dists/stable/main/binary-amd64/Packages
+          gzip -9n -c dists/stable/main/binary-amd64/Packages > dists/stable/main/binary-amd64/Packages.gz
+          if [[ -f "$APT_CONF" ]]; then
+            apt-ftparchive -c "$APT_CONF" release dists/stable > dists/stable/Release
+          else
+            apt-ftparchive release dists/stable > dists/stable/Release
+          fi
           popd >/dev/null
+
+          test -f "$POOL_DIR/$DEB_NAME"
+          test -s "$DIST_DIR/Packages"
+          test -s "$DIST_DIR/Packages.gz"
+          test -s "$RELEASE_FILE"
 
       - name: Hard checks on generated indexes
         shell: bash
@@ -153,13 +163,22 @@ jobs:
         run: |
           set -euo pipefail
 
+          DEB_FILE="gdlex-apt-repo/pool/main/g/gdlex-pct-validator/gdlex-pct-validator_${VERSION}_amd64.deb"
           PKG_FILE="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages"
           PKG_GZ="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz"
+          RELEASE_FILE="gdlex-apt-repo/dists/stable/Release"
+          EXPECTED_FILENAME="pool/main/g/gdlex-pct-validator/gdlex-pct-validator_${VERSION}_amd64.deb"
 
+          test -f "$DEB_FILE"
           test -s "$PKG_FILE"
+          test -s "$PKG_GZ"
+          test -s "$RELEASE_FILE"
+
           grep -q '^Package: gdlex-pct-validator$' "$PKG_FILE"
           grep -q "^Version: ${VERSION}$" "$PKG_FILE"
-          test -s "$PKG_GZ"
+          grep -q "^Filename: ${EXPECTED_FILENAME}$" "$PKG_FILE"
+          grep -q 'main/binary-amd64/Packages' "$RELEASE_FILE"
+          grep -q 'main/binary-amd64/Packages.gz' "$RELEASE_FILE"
 
           echo "Hard checks passed for version ${VERSION}."
 
@@ -181,23 +200,39 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Add gdlex-pct-validator ${VERSION}"
+          git commit -m "Publish gdlex-pct-validator ${VERSION} to APT repo"
           git push origin main
           popd >/dev/null
 
       - name: Remote visibility check (non-blocking with retry)
         shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
 
-          URL="https://cortomaltese88.github.io/gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz"
+          BASE_URL="https://cortomaltese88.github.io/gdlex-apt-repo"
+          URLS=(
+            "$BASE_URL/dists/stable/main/binary-amd64/Packages.gz"
+            "$BASE_URL/dists/stable/Release"
+            "$BASE_URL/pool/main/g/gdlex-pct-validator/gdlex-pct-validator_${VERSION}_amd64.deb"
+          )
           ATTEMPTS=10
           SLEEP_SECONDS=15
           ok=0
 
           for i in $(seq 1 "$ATTEMPTS"); do
-            if curl -fsSI "$URL" >/dev/null; then
-              echo "Remote Packages.gz raggiungibile al tentativo $i/$ATTEMPTS"
+            all_ok=1
+            for url in "${URLS[@]}"; do
+              if ! curl -fsSI "$url" >/dev/null; then
+                all_ok=0
+                echo "URL non ancora raggiungibile: $url"
+                break
+              fi
+            done
+
+            if [[ "$all_ok" -eq 1 ]]; then
+              echo "Asset APT remoti raggiungibili al tentativo $i/$ATTEMPTS"
               ok=1
               break
             fi
@@ -206,7 +241,7 @@ jobs:
           done
 
           if [[ "$ok" -ne 1 ]]; then
-            echo "::warning::Packages.gz non ancora raggiungibile dopo ${ATTEMPTS} tentativi (possibile delay GitHub Pages)."
+            echo "::warning::Asset APT remoti non ancora tutti raggiungibili dopo ${ATTEMPTS} tentativi (possibile delay GitHub Pages)."
           fi
 
   apt-repo-sanity:
