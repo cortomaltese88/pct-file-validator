@@ -173,6 +173,7 @@ APP_ROOT="/usr/lib/gdlex-pct-validator"
 VENV_DIR="$APP_ROOT/venv"
 APP_DIR="$APP_ROOT/app"
 VENV_PY="$VENV_DIR/bin/python"
+export SETUPTOOLS_SCM_PRETEND_VERSION_FOR_GDLEX_PCT_VALIDATOR="__APP_VERSION__"
 
 if [[ ! -x "$VENV_PY" ]]; then
   python3 -m venv "$VENV_DIR"
@@ -187,6 +188,7 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
   gtk-update-icon-cache -q /usr/share/icons/hicolor || true
 fi
 POST
+sed -i "s/__APP_VERSION__/$VERSION/g" "$CONTROL_DIR/postinst"
 chmod 755 "$CONTROL_DIR/postinst"
 
 DEB_PATH="$DIST_DIR/${PKG_NAME}_${VERSION}_${ARCH}.deb"
