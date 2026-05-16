@@ -137,6 +137,23 @@ Non è consentito:
 
 Per i dettagli completi consultare il file `LICENSE`.
 
+Per una ricognizione delle dipendenze e dei relativi riferimenti di
+licenza consultare `THIRD_PARTY_LICENSES.md`.
+
+## Licenze terze parti e marchio
+
+Le dipendenze software di terze parti mantengono le rispettive licenze.
+Per un riepilogo operativo e per le verifiche ancora aperte consultare
+`THIRD_PARTY_LICENSES.md`.
+
+Il nome, il logo, il marchio e l'identità visiva **STUDIO GD LEX** /
+**GD LEX** restano distinti dalla licenza del software e non sono
+concessi in uso salvo autorizzazione separata.
+
+Eventuali fork, redistribuzioni o versioni modificate non possono essere
+presentati come versioni ufficiali, approvate o affiliate a STUDIO GD
+LEX salvo autorizzazione separata.
+
 ------------------------------------------------------------------------
 
 ## Disclaimer

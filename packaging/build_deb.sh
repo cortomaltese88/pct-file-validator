@@ -63,7 +63,7 @@ for size in 16 24 32 48 64 128 256; do
   install -Dm644 "$ICON_BUILD_DIR/hicolor/${size}x${size}/apps/gdlex-pct-validator.png" "$STAGE_DIR/usr/share/icons/hicolor/${size}x${size}/apps/gdlex-pct-validator.png"
 done
 
-SHORT_DESC="Tool interno GD LEX per analisi/correzione conservativa file PCT/PDUA"
+SHORT_DESC="Tool desktop GD LEX per verifica deposito PCT/PDUA"
 LONG_DESC="GD LEX PCT Validator include GUI e CLI per analisi batch, correzioni conservative e report tecnici (.gdlex)."
 
 CONTROL_DIR="$STAGE_DIR/DEBIAN"
