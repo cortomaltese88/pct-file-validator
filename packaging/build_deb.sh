@@ -18,6 +18,7 @@ ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 APP_PREFIX="$STAGE_DIR/usr/lib/gdlex-pct-validator"
 APP_SRC="$APP_PREFIX/app"
 DOC_DIR="$STAGE_DIR/usr/share/doc/$PKG_NAME"
+MAN_DIR="$STAGE_DIR/usr/share/man/man1"
 
 
 BUILD_DATE="${BUILD_DATE:-$(date -u +%Y-%m-%d)}"
@@ -126,6 +127,8 @@ install_doc "README.md"
 install_doc "LICENSE"
 install_doc "THIRD_PARTY_LICENSES.md"
 gzip -9n -c "$ROOT_DIR/debian/changelog" > "$DOC_DIR/changelog.gz"
+install -d -m 755 "$MAN_DIR"
+gzip -9n -c "$ROOT_DIR/packaging/man/gdlex-gui.1" > "$MAN_DIR/gdlex-gui.1.gz"
 cat > "$DOC_DIR/copyright" <<'EOF'
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: gdlex-pct-validator
@@ -150,7 +153,8 @@ for size in 16 24 32 48 64 128 256; do
 done
 
 SHORT_DESC="Tool desktop GD LEX per verifica deposito PCT/PDUA"
-LONG_DESC="GD LEX PCT Validator include GUI e CLI per analisi batch, correzioni conservative e report tecnici (.gdlex)."
+LONG_DESC_1="GD LEX PCT Validator include GUI e CLI per analisi batch,"
+LONG_DESC_2="correzioni conservative e report tecnici (.gdlex)."
 
 CONTROL_DIR="$STAGE_DIR/DEBIAN"
 mkdir -p "$CONTROL_DIR"
@@ -163,7 +167,8 @@ Architecture: $ARCH
 Maintainer: $MAINTAINER
 Depends: python3, python3-venv, python3-pip
 Description: $SHORT_DESC
- $LONG_DESC
+ $LONG_DESC_1
+ $LONG_DESC_2
 EOF
 
 cat > "$CONTROL_DIR/postinst" <<'POST'
