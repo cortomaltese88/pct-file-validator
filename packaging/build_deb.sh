@@ -17,6 +17,7 @@ VERSION="${VERSION#v}"
 ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 APP_PREFIX="$STAGE_DIR/opt/gdlex-pct-validator"
 APP_SRC="$APP_PREFIX/app"
+DOC_DIR="$STAGE_DIR/usr/share/doc/$PKG_NAME"
 
 
 BUILD_DATE="${BUILD_DATE:-$(date -u +%Y-%m-%d)}"
@@ -54,8 +55,76 @@ mkdir -p "$STAGE_DIR" "$DIST_DIR"
 ICON_BUILD_DIR="$DIST_DIR/icons"
 python3 "$ROOT_DIR/tools/generate_icons.py" --output-dir "$ICON_BUILD_DIR" --check
 
-install -d -m 755 "$APP_SRC"
-rsync -a --exclude '.git' --exclude '.venv' --exclude '__pycache__' --exclude 'dist' "$ROOT_DIR/" "$APP_SRC/"
+require_path() {
+  local rel_path="$1"
+  if [[ ! -e "$ROOT_DIR/$rel_path" ]]; then
+    echo "Errore: path essenziale mancante: $rel_path" >&2
+    exit 1
+  fi
+}
+
+copy_path() {
+  local rel_path="$1"
+  local src="$ROOT_DIR/$rel_path"
+
+  if [[ ! -e "$src" ]]; then
+    return 0
+  fi
+
+  if [[ -d "$src" ]]; then
+    (
+      cd "$ROOT_DIR"
+      tar \
+        --exclude='__pycache__' \
+        --exclude='*.pyc' \
+        --exclude='.pytest_cache' \
+        --exclude='.ruff_cache' \
+        -cf - "$rel_path"
+    ) | (
+      cd "$APP_SRC"
+      tar -xf -
+    )
+    return 0
+  fi
+
+  install -d -m 755 "$APP_SRC/$(dirname "$rel_path")"
+  cp -a "$src" "$APP_SRC/$rel_path"
+}
+
+install_doc() {
+  local rel_path="$1"
+  local src="$ROOT_DIR/$rel_path"
+
+  if [[ ! -f "$src" ]]; then
+    echo "Errore: file documentazione mancante: $rel_path" >&2
+    exit 1
+  fi
+
+  install -Dm644 "$src" "$DOC_DIR/$(basename "$rel_path")"
+}
+
+REQUIRED_APP_PATHS=(
+  "pyproject.toml"
+  "README.md"
+  "LICENSE"
+  "THIRD_PARTY_LICENSES.md"
+  "core"
+  "cli"
+  "gui"
+  "configs"
+  "assets"
+)
+
+install -d -m 755 "$APP_SRC" "$DOC_DIR"
+
+for rel_path in "${REQUIRED_APP_PATHS[@]}"; do
+  require_path "$rel_path"
+  copy_path "$rel_path"
+done
+
+install_doc "README.md"
+install_doc "LICENSE"
+install_doc "THIRD_PARTY_LICENSES.md"
 
 install -Dm755 "$ROOT_DIR/packaging/usr-bin/gdlex-gui" "$STAGE_DIR/usr/bin/gdlex-gui"
 install -Dm644 "$ROOT_DIR/packaging/gdlex-pct-validator.desktop" "$STAGE_DIR/usr/share/applications/gdlex-pct-validator.desktop"
