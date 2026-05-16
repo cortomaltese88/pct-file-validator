@@ -135,7 +135,7 @@ jobs:
           DIST_DIR="$APT_REPO_DIR/dists/stable/main/binary-amd64"
           RELEASE_FILE="$APT_REPO_DIR/dists/stable/Release"
           DEB_NAME="gdlex-pct-validator_${VERSION}_amd64.deb"
-          APT_CONF="$APT_REPO_DIR/apt-ftparchive.conf"
+          APT_CONF="$PWD/$APT_REPO_DIR/apt-ftparchive.conf"
 
           mkdir -p "$POOL_DIR" "$DIST_DIR"
           cp -f "$DEB_PATH" "$POOL_DIR/"
@@ -155,6 +155,10 @@ jobs:
           test -s "$DIST_DIR/Packages"
           test -s "$DIST_DIR/Packages.gz"
           test -s "$RELEASE_FILE"
+          grep -q '^Origin: GDLEX$' "$RELEASE_FILE"
+          grep -q '^Label: GDLEX$' "$RELEASE_FILE"
+          grep -q '^Suite: stable$' "$RELEASE_FILE"
+          grep -q '^Codename: stable$' "$RELEASE_FILE"
 
       - name: Hard checks on generated indexes
         shell: bash
