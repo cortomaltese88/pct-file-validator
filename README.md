@@ -116,6 +116,17 @@ La quality gate gira nel workflow CI su Pull Request.
 
 ------------------------------------------------------------------------
 
+## Documentazione
+
+- `docs/BUILD.md` -- build locale, test e pacchetti
+- `docs/RELEASE.md` -- release Linux/Windows, tag e APT
+- `docs/TROUBLESHOOTING.md` -- problemi frequenti
+- `CHANGELOG.md` -- storico sintetico delle versioni
+- `SECURITY.md` -- segnalazione problemi di sicurezza
+- `CONTRIBUTING.md` -- regole di contribuzione
+
+------------------------------------------------------------------------
+
 ## Licenza
 
 © 2026 Marco Gianese -- STUDIO GD LEX
