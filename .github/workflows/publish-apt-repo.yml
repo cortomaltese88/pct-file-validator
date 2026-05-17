@@ -160,6 +160,55 @@ jobs:
           grep -q '^Suite: stable$' "$RELEASE_FILE"
           grep -q '^Codename: stable$' "$RELEASE_FILE"
 
+      - name: Sign APT Release metadata
+        shell: bash
+        env:
+          GDLEX_APT_GPG_PRIVATE_KEY_B64: ${{ secrets.GDLEX_APT_GPG_PRIVATE_KEY_B64 }}
+          GDLEX_APT_GPG_PASSPHRASE: ${{ secrets.GDLEX_APT_GPG_PASSPHRASE }}
+          GDLEX_APT_GPG_KEY_ID: ${{ secrets.GDLEX_APT_GPG_KEY_ID }}
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+          sudo apt-get install -y gnupg
+
+          export GNUPGHOME="$(mktemp -d)"
+          chmod 700 "$GNUPGHOME"
+
+          cleanup() {
+            rm -rf "$GNUPGHOME"
+          }
+          trap cleanup EXIT
+
+          test -n "${GDLEX_APT_GPG_PRIVATE_KEY_B64:-}" || { echo "Missing secret GDLEX_APT_GPG_PRIVATE_KEY_B64" >&2; exit 1; }
+          test -n "${GDLEX_APT_GPG_PASSPHRASE:-}" || { echo "Missing secret GDLEX_APT_GPG_PASSPHRASE" >&2; exit 1; }
+          test -n "${GDLEX_APT_GPG_KEY_ID:-}" || { echo "Missing secret GDLEX_APT_GPG_KEY_ID" >&2; exit 1; }
+
+          printf '%s' "$GDLEX_APT_GPG_PRIVATE_KEY_B64" | base64 -d | gpg --batch --import
+
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GDLEX_APT_GPG_PASSPHRASE" \
+            --local-user "$GDLEX_APT_GPG_KEY_ID" \
+            --armor \
+            --detach-sign \
+            --output gdlex-apt-repo/dists/stable/Release.gpg \
+            gdlex-apt-repo/dists/stable/Release
+
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$GDLEX_APT_GPG_PASSPHRASE" \
+            --local-user "$GDLEX_APT_GPG_KEY_ID" \
+            --clearsign \
+            --output gdlex-apt-repo/dists/stable/InRelease \
+            gdlex-apt-repo/dists/stable/Release
+
+          test -s gdlex-apt-repo/dists/stable/Release.gpg
+          test -s gdlex-apt-repo/dists/stable/InRelease
+
+          gpg --verify gdlex-apt-repo/dists/stable/Release.gpg gdlex-apt-repo/dists/stable/Release
+          gpg --verify gdlex-apt-repo/dists/stable/InRelease
+
+          grep -q '^-----BEGIN PGP SIGNED MESSAGE-----' gdlex-apt-repo/dists/stable/InRelease
+
       - name: Hard checks on generated indexes
         shell: bash
         env:
@@ -171,18 +220,23 @@ jobs:
           PKG_FILE="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages"
           PKG_GZ="gdlex-apt-repo/dists/stable/main/binary-amd64/Packages.gz"
           RELEASE_FILE="gdlex-apt-repo/dists/stable/Release"
+          INRELEASE_FILE="gdlex-apt-repo/dists/stable/InRelease"
+          RELEASE_SIG_FILE="gdlex-apt-repo/dists/stable/Release.gpg"
           EXPECTED_FILENAME="pool/main/g/gdlex-pct-validator/gdlex-pct-validator_${VERSION}_amd64.deb"
 
           test -f "$DEB_FILE"
           test -s "$PKG_FILE"
           test -s "$PKG_GZ"
           test -s "$RELEASE_FILE"
+          test -s "$INRELEASE_FILE"
+          test -s "$RELEASE_SIG_FILE"
 
           grep -q '^Package: gdlex-pct-validator$' "$PKG_FILE"
           grep -q "^Version: ${VERSION}$" "$PKG_FILE"
           grep -q "^Filename: ${EXPECTED_FILENAME}$" "$PKG_FILE"
           grep -q 'main/binary-amd64/Packages' "$RELEASE_FILE"
           grep -q 'main/binary-amd64/Packages.gz' "$RELEASE_FILE"
+          grep -q '^-----BEGIN PGP SIGNED MESSAGE-----' "$INRELEASE_FILE"
 
           echo "Hard checks passed for version ${VERSION}."
 
@@ -219,6 +273,8 @@ jobs:
           URLS=(
             "$BASE_URL/dists/stable/main/binary-amd64/Packages.gz"
             "$BASE_URL/dists/stable/Release"
+            "$BASE_URL/dists/stable/InRelease"
+            "$BASE_URL/dists/stable/Release.gpg"
             "$BASE_URL/pool/main/g/gdlex-pct-validator/gdlex-pct-validator_${VERSION}_amd64.deb"
           )
           ATTEMPTS=10
